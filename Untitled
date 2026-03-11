@@ -1,0 +1,68 @@
+You are a senior Python engineer building a research data pipeline.
+
+I have an Excel file called:
+Top10_High_Only_Per_Class.xlsx
+
+It contains the following columns:
+- class_label
+- engagement_level
+- rank_in_group
+- post_id
+- title
+- top_level_comment_count
+- link
+
+Each row contains a Reddit post link from r/suboxone.
+
+Your task:
+
+Write a complete Python script named:
+
+scrape_reddit_posts.py
+
+The script must:
+
+1. Read the Excel file Top10_High_Only_Per_Class.xlsx
+2. For each row:
+   - Extract the Reddit post_id from the link
+   - Use the Reddit API (PRAW) to fetch:
+       a) The original post body (submission.selftext)
+       b) ALL first-level comments only (not replies)
+3. Format comments strictly like this:
+
+C1: comment text
+C2: comment text
+C3: comment text
+
+Each separated by a newline.
+
+4. Add two new columns:
+   - post_text
+   - top_level_comments_text
+
+5. Preserve all original metadata columns.
+
+6. Save the final output to:
+   Top10_High_With_Text_And_Comments.xlsx
+
+7. Use environment variables for API keys:
+   REDDIT_CLIENT_ID
+   REDDIT_CLIENT_SECRET
+   REDDIT_USER_AGENT
+
+8. Include:
+   - basic error handling
+   - skip deleted or removed posts gracefully
+   - rate limiting (sleep 0.5 seconds per request)
+   - tqdm progress bar
+   - clean text formatting
+
+9. Do NOT hardcode API keys.
+
+10. Include clear installation instructions at the top:
+    pip install praw pandas openpyxl tqdm
+
+Output only the final complete Python script.
+No explanation.
+No commentary.
+No extra text.

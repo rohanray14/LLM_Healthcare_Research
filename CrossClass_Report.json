@@ -1,0 +1,49 @@
+{
+  "insights": [
+    "Classes with highest divergence frequency: Co-occuring Drug Usage (rank 1).",
+    "Classes with highest divergence frequency: Others (rank 2).",
+    "Classes with highest divergence frequency: Psycho-Physical Effects (rank 3).",
+    "Risk/clinical note concentration: Access Logistics ranks 1 in clinically relevant patterns.",
+    "Risk/clinical note concentration: Co-occuring Drug Usage ranks 2 in clinically relevant patterns.",
+    "Risk/clinical note concentration: MOUD Administration ranks 3 in clinically relevant patterns.",
+    "Cross-class themes vary by engagement context (e.g. access, dosing, stigma).",
+    "Agreement areas often center on tapering and professional support.",
+    "Divergence axes frequently involve cold turkey vs. gradual reduction.",
+    "Data quality issues (few comments, deleted) affect some classes more.",
+    "Misinformation patterns cluster in classes with high uncertainty.",
+    "Access barriers (cost, prescriber) recur across multiple classes."
+  ],
+  "by_class": {
+    "Access Logistics": {
+      "divergence_count": 1,
+      "risk_note_count": 2,
+      "theme_count": 3
+    },
+    "Co-occuring Drug Usage": {
+      "divergence_count": 2,
+      "risk_note_count": 2,
+      "theme_count": 3
+    },
+    "MOUD Administration": {
+      "divergence_count": 1,
+      "risk_note_count": 2,
+      "theme_count": 3
+    },
+    "Others": {
+      "divergence_count": 2,
+      "risk_note_count": 2,
+      "theme_count": 1
+    },
+    "Psycho-Physical Effects": {
+      "divergence_count": 2,
+      "risk_note_count": 2,
+      "theme_count": 4
+    },
+    "Tapering": {
+      "divergence_count": 2,
+      "risk_note_count": 2,
+      "theme_count": 1
+    }
+  },
+  "comparison_table": "| Class | Post count | Divergence axes | Risk/clinical notes |\n|-------|------------|-----------------|---------------------|\n| Access Logistics | 12 | 1 | 2 |\n| Co-occuring Drug Usage | 16 | 2 | 2 |\n| MOUD Administration | 12 | 1 | 2 |\n| Others | 20 | 2 | 2 |\n| Psycho-Physical Effects | 18 | 2 | 2 |\n| Tapering | 20 | 2 | 2 |"
+}
