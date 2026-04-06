@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import time
 from pathlib import Path
 
+import anthropic
 import pandas as pd
 import openai
 from langchain_dartmouth.llms import ChatDartmouth
@@ -40,13 +42,29 @@ ONLY_OPENAI = os.environ.get("ONLY_OPENAI", "").strip().lower() in ("1", "true",
 # --- Rate limit & retries ---
 BASE_DELAY = 1.0
 MAX_RETRIES = 4
+API_TIMEOUT = 120  # seconds per API call
+
+
+class APITimeoutError(Exception):
+    pass
+
+
+def _timeout_handler(signum, frame):
+    raise APITimeoutError("API call timed out")
 
 
 def retry_with_backoff(fn, *args, **kwargs):
     last_err = None
     for attempt in range(MAX_RETRIES):
         try:
-            return fn(*args, **kwargs)
+            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(API_TIMEOUT)
+            try:
+                result = fn(*args, **kwargs)
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+            return result
         except Exception as e:
             last_err = e
             if attempt < MAX_RETRIES - 1:
@@ -129,20 +147,18 @@ def call_openai(prompt_user: str, repair: bool = False, system_content: str | No
 
 
 def call_anthropic(prompt_user: str, repair: bool = False, system_content: str | None = None) -> str:
-    llm = ChatDartmouth(
-        model_name="anthropic.claude-sonnet-4-6",
-        temperature=0.2,
-        max_tokens=4096,
-    )
-    if repair:
-        messages = [HumanMessage(content=prompt_user)]
-    else:
-        system = system_content or POST_ANALYSIS_SYSTEM
-        messages = [SystemMessage(content=system), HumanMessage(content=prompt_user)]
+    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+    system = "" if repair else (system_content or POST_ANALYSIS_SYSTEM)
 
     def _call():
-        r = llm.invoke(messages)
-        return r.content or ""
+        r = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            temperature=0.2,
+            system=system if system else anthropic.NOT_GIVEN,
+            messages=[{"role": "user", "content": prompt_user}],
+        )
+        return r.content[0].text or ""
 
     return retry_with_backoff(_call)
 
@@ -218,6 +234,16 @@ def repair_json(raw: str, model_family: str, prompt_user: str) -> str:
     return ""
 
 
+def _save_incremental(rows, existing):
+    """Save progress to disk so work isn't lost if the process hangs."""
+    out_df = pd.DataFrame(rows)
+    if existing is not None and not existing.empty:
+        out_df = pd.concat([existing, out_df], ignore_index=True)
+        out_df = out_df.drop_duplicates(subset=["post_id", "model_family"], keep="last")
+    out_df.to_excel(POST_LEVEL_OUTPUT, index=False, engine="openpyxl")
+    return out_df
+
+
 def run_post_level(input_df: pd.DataFrame, existing: pd.DataFrame | None) -> pd.DataFrame:
     rows = []
     seen = set()
@@ -241,6 +267,7 @@ def run_post_level(input_df: pd.DataFrame, existing: pd.DataFrame | None) -> pd.
             ("anthropic", "claude-sonnet-4.6", call_anthropic),
         ]
 
+    new_since_save = 0
     for _, row in tqdm(input_df.iterrows(), total=len(input_df), desc="Post-level"):
         class_label = row.get("class_label", "")
         post_id = str(row.get("post_id", ""))
@@ -282,6 +309,7 @@ def run_post_level(input_df: pd.DataFrame, existing: pd.DataFrame | None) -> pd.
                     "raw_output": raw_output,
                     "error": err_msg,
                 })
+                new_since_save += 1
                 continue
 
             parsed = parse_post_json(raw_output)
@@ -323,6 +351,12 @@ def run_post_level(input_df: pd.DataFrame, existing: pd.DataFrame | None) -> pd.
                 "raw_output": raw_output[:50000],
                 "error": err_msg,
             })
+            new_since_save += 1
+
+        # Save every 5 posts so progress isn't lost
+        if new_since_save >= 5:
+            _save_incremental(rows, existing)
+            new_since_save = 0
 
     out_df = pd.DataFrame(rows)
     if existing is not None and not existing.empty:

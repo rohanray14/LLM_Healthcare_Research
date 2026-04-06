@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: moud-post-verifier
+    runtime: python
+    buildCommand: pip install -r webapp/requirements.txt && cd webapp && python load_data.py
+    startCommand: cd webapp && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: SECRET_KEY
+        generateValue: true
