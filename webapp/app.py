@@ -6,6 +6,7 @@ from config import SECRET_KEY, USERS, LABELS
 from models import (
     init_db, posts_loaded, get_posts, get_post, get_llm_outputs,
     get_adjacent_posts, get_existing_verifications, save_verification, get_progress,
+    get_claims, save_claims,
 )
 
 app = Flask(__name__)
@@ -89,6 +90,7 @@ def post_detail(post_id):
 
     llm_outputs = get_llm_outputs(post_id)
     label_v, comment_vs = get_existing_verifications(post_id, session["username"])
+    claims_by_comment = get_claims(post_id, session["username"])
     prev_id, next_id = get_adjacent_posts(post_id)
 
     # Parse LLM JSON fields for display
@@ -113,6 +115,7 @@ def post_detail(post_id):
         llm_outputs=parsed_llm,
         label_v=label_v,
         comment_vs=comment_vs,
+        claims_by_comment=claims_by_comment,
         prev_id=prev_id,
         next_id=next_id,
         labels=LABELS,
@@ -139,7 +142,25 @@ def verify_post(post_id):
                 "note": request.form.get(f"note_{idx}", ""),
             }
 
+    # Parse claim annotations
+    claims_data = []
+    claim_idx = 0
+    while True:
+        claim_text = request.form.get(f"claim_text_{claim_idx}")
+        if claim_text is None:
+            break
+        if claim_text.strip():
+            claims_data.append({
+                "comment_index": int(request.form.get(f"claim_comment_{claim_idx}", 0)),
+                "claim_text": claim_text,
+                "credibility": request.form.get(f"claim_credibility_{claim_idx}", "unclear"),
+                "evidence_type": request.form.get(f"claim_evidence_{claim_idx}", "anecdotal"),
+                "note": request.form.get(f"claim_note_{claim_idx}", ""),
+            })
+        claim_idx += 1
+
     save_verification(post_id, session["username"], label_data, comment_flags)
+    save_claims(post_id, session["username"], claims_data)
     flash("Verification saved!", "success")
     return redirect(url_for("post_detail", post_id=post_id))
 
@@ -170,6 +191,11 @@ def export_data():
     writer.writerow(["post_id", "comment_index", "expert", "flag", "note", "created_at"])
     for row in conn.execute("SELECT * FROM comment_verifications ORDER BY post_id, comment_index"):
         writer.writerow([row["post_id"], row["comment_index"], row["expert_username"], row["flag"], row["note"], row["created_at"]])
+
+    writer.writerow([])
+    writer.writerow(["post_id", "comment_index", "expert", "claim_text", "credibility", "evidence_type", "note", "created_at"])
+    for row in conn.execute("SELECT * FROM claim_annotations ORDER BY post_id, comment_index, id"):
+        writer.writerow([row["post_id"], row["comment_index"], row["expert_username"], row["claim_text"], row["credibility"], row["evidence_type"], row["note"], row["created_at"]])
 
     conn.close()
 

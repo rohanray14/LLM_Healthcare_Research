@@ -69,6 +69,21 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(post_id, comment_index, expert_username)
         );
+
+        CREATE TABLE IF NOT EXISTS claim_annotations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id TEXT REFERENCES posts(id),
+            comment_index INTEGER,
+            expert_username TEXT,
+            claim_text TEXT NOT NULL,
+            credibility TEXT CHECK(credibility IN ('supported', 'unsupported', 'misleading', 'unclear')) NOT NULL,
+            evidence_type TEXT CHECK(evidence_type IN ('clinical', 'anecdotal', 'general_knowledge', 'misinformation')) NOT NULL,
+            note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_claims_post ON claim_annotations(post_id);
+        CREATE INDEX IF NOT EXISTS idx_claims_comment ON claim_annotations(post_id, comment_index);
     """)
     conn.close()
 
@@ -228,6 +243,49 @@ def save_verification(post_id, username, label_data, comment_flags):
     conn.close()
 
 
+def get_claims(post_id, username):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM claim_annotations WHERE post_id = ? AND expert_username = ? ORDER BY comment_index, id",
+        (post_id, username),
+    ).fetchall()
+    conn.close()
+    claims_by_comment = {}
+    for row in rows:
+        ci = row["comment_index"]
+        if ci not in claims_by_comment:
+            claims_by_comment[ci] = []
+        claims_by_comment[ci].append(row)
+    return claims_by_comment
+
+
+def save_claims(post_id, username, claims_data):
+    conn = get_db()
+    # Delete existing claims for this post/user and re-insert
+    conn.execute(
+        "DELETE FROM claim_annotations WHERE post_id = ? AND expert_username = ?",
+        (post_id, username),
+    )
+    for claim in claims_data:
+        if claim.get("claim_text", "").strip():
+            conn.execute(
+                """INSERT INTO claim_annotations
+                    (post_id, comment_index, expert_username, claim_text, credibility, evidence_type, note)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    post_id,
+                    claim["comment_index"],
+                    username,
+                    claim["claim_text"].strip(),
+                    claim.get("credibility", "unclear"),
+                    claim.get("evidence_type", "anecdotal"),
+                    claim.get("note", ""),
+                ),
+            )
+    conn.commit()
+    conn.close()
+
+
 def get_progress():
     conn = get_db()
     total = conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
@@ -237,8 +295,11 @@ def get_progress():
     comments_flagged = conn.execute(
         "SELECT COUNT(*) FROM comment_verifications"
     ).fetchone()[0]
+    claims_annotated = conn.execute(
+        "SELECT COUNT(*) FROM claim_annotations"
+    ).fetchone()[0]
     conn.close()
-    return {"total": total, "verified": verified, "comments_flagged": comments_flagged}
+    return {"total": total, "verified": verified, "comments_flagged": comments_flagged, "claims_annotated": claims_annotated}
 
 
 def posts_loaded():
