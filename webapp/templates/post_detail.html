@@ -148,14 +148,17 @@
 </div>
 {% endif %}
 
-<!-- Comments -->
+<!-- Comments & Claim Annotation -->
 <div class="card mb-3">
-    <div class="card-header"><h6 class="mb-0">Comments ({{ comments|length }})</h6></div>
-    <div class="card-body" style="max-height: 800px; overflow-y: auto;">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Comments & Claim Annotation ({{ comments|length }} comments)</h6>
+        <small class="text-muted">Extract specific claims from comments — skip personal anecdotes</small>
+    </div>
+    <div class="card-body" style="max-height: none; overflow-y: visible;">
         {% for comment in comments %}
-        <div class="card mb-2 comment-card">
+        <div class="card mb-3 comment-card">
             <div class="card-body py-2 px-3">
-                <div class="d-flex justify-content-between align-items-start mb-1">
+                <div class="d-flex justify-content-between align-items-start mb-2">
                     <strong class="text-muted small">Comment #{{ comment.comment_index }}</strong>
                     {% set cv = comment_vs.get(comment.comment_index) %}
                     <div class="btn-group btn-group-sm" role="group">
@@ -175,9 +178,57 @@
                         <label class="btn btn-outline-warning" for="unc_{{ comment.comment_index }}">Unclear</label>
                     </div>
                 </div>
-                <p class="mb-1 small">{{ comment.text }}</p>
-                <input type="text" name="note_{{ comment.comment_index }}" class="form-control form-control-sm mt-1"
-                    value="{{ cv.note if cv else '' }}" placeholder="Optional note...">
+                <p class="mb-2 small comment-text" id="comment-text-{{ comment.comment_index }}">{{ comment.text }}</p>
+
+                <!-- Claims for this comment -->
+                <div class="claims-section ms-3 border-start ps-3" id="claims-{{ comment.comment_index }}">
+                    <div class="d-flex align-items-center mb-2">
+                        <small class="text-primary fw-bold">Extracted Claims</small>
+                        <button type="button" class="btn btn-sm btn-outline-primary ms-2 add-claim-btn"
+                            data-comment-index="{{ comment.comment_index }}"
+                            onclick="addClaim({{ comment.comment_index }})">+ Add Claim</button>
+                    </div>
+
+                    <div class="claims-list" id="claims-list-{{ comment.comment_index }}">
+                        {% set existing_claims = claims_by_comment.get(comment.comment_index, []) %}
+                        {% for claim in existing_claims %}
+                        <div class="claim-row card mb-2 border-0 bg-light" data-claim-idx="{{ loop.index0 }}">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-start gap-2 mb-1">
+                                    <textarea class="form-control form-control-sm flex-grow-1 claim-text-input"
+                                        name="" rows="2"
+                                        placeholder="Type or paste the specific claim from the comment...">{{ claim.claim_text }}</textarea>
+                                    <button type="button" class="btn btn-sm btn-outline-danger remove-claim-btn"
+                                        onclick="this.closest('.claim-row').remove(); reindexClaims();">&times;</button>
+                                </div>
+                                <div class="row g-2 mt-1">
+                                    <div class="col-md-4">
+                                        <select class="form-select form-select-sm claim-credibility-input" name="">
+                                            <option value="supported" {% if claim.credibility == 'supported' %}selected{% endif %}>Supported</option>
+                                            <option value="unsupported" {% if claim.credibility == 'unsupported' %}selected{% endif %}>Unsupported</option>
+                                            <option value="misleading" {% if claim.credibility == 'misleading' %}selected{% endif %}>Misleading</option>
+                                            <option value="unclear" {% if claim.credibility == 'unclear' %}selected{% endif %}>Unclear</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-select form-select-sm claim-evidence-input" name="">
+                                            <option value="clinical" {% if claim.evidence_type == 'clinical' %}selected{% endif %}>Clinical/Medical</option>
+                                            <option value="anecdotal" {% if claim.evidence_type == 'anecdotal' %}selected{% endif %}>Anecdotal</option>
+                                            <option value="general_knowledge" {% if claim.evidence_type == 'general_knowledge' %}selected{% endif %}>General Knowledge</option>
+                                            <option value="misinformation" {% if claim.evidence_type == 'misinformation' %}selected{% endif %}>Misinformation</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control form-control-sm claim-note-input"
+                                            name="" value="{{ claim.note or '' }}" placeholder="Note (optional)">
+                                    </div>
+                                </div>
+                                <input type="hidden" class="claim-comment-input" name="" value="{{ comment.comment_index }}">
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
         </div>
         {% endfor %}
@@ -201,4 +252,91 @@
     {% else %}<span></span>{% endif %}
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addClaim(commentIndex) {
+    const list = document.getElementById('claims-list-' + commentIndex);
+    const div = document.createElement('div');
+    div.className = 'claim-row card mb-2 border-0 bg-light';
+    div.innerHTML = `
+        <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-start gap-2 mb-1">
+                <textarea class="form-control form-control-sm flex-grow-1 claim-text-input"
+                    name="" rows="2"
+                    placeholder="Type or paste the specific claim from the comment..."></textarea>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-claim-btn"
+                    onclick="this.closest('.claim-row').remove(); reindexClaims();">&times;</button>
+            </div>
+            <div class="row g-2 mt-1">
+                <div class="col-md-4">
+                    <select class="form-select form-select-sm claim-credibility-input" name="">
+                        <option value="supported">Supported</option>
+                        <option value="unsupported">Unsupported</option>
+                        <option value="misleading">Misleading</option>
+                        <option value="unclear" selected>Unclear</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select form-select-sm claim-evidence-input" name="">
+                        <option value="clinical">Clinical/Medical</option>
+                        <option value="anecdotal" selected>Anecdotal</option>
+                        <option value="general_knowledge">General Knowledge</option>
+                        <option value="misinformation">Misinformation</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <input type="text" class="form-control form-control-sm claim-note-input"
+                        name="" placeholder="Note (optional)">
+                </div>
+            </div>
+            <input type="hidden" class="claim-comment-input" name="" value="${commentIndex}">
+        </div>
+    `;
+    list.appendChild(div);
+    div.querySelector('textarea').focus();
+    reindexClaims();
+}
+
+function reindexClaims() {
+    const allClaims = document.querySelectorAll('.claim-row');
+    allClaims.forEach((row, i) => {
+        row.querySelector('.claim-text-input').name = 'claim_text_' + i;
+        row.querySelector('.claim-credibility-input').name = 'claim_credibility_' + i;
+        row.querySelector('.claim-evidence-input').name = 'claim_evidence_' + i;
+        row.querySelector('.claim-note-input').name = 'claim_note_' + i;
+        row.querySelector('.claim-comment-input').name = 'claim_comment_' + i;
+    });
+}
+
+// Enable selecting text from comment and auto-populating a new claim
+document.querySelectorAll('.comment-text').forEach(el => {
+    el.addEventListener('mouseup', function() {
+        const sel = window.getSelection().toString().trim();
+        if (sel.length > 10) {
+            const commentIndex = this.id.replace('comment-text-', '');
+            const claimsList = document.getElementById('claims-list-' + commentIndex);
+            const lastTextarea = claimsList.querySelector('.claim-row:last-child .claim-text-input');
+            if (lastTextarea && lastTextarea.value === '') {
+                lastTextarea.value = sel;
+            } else {
+                addClaim(parseInt(commentIndex));
+                setTimeout(() => {
+                    const newTextarea = claimsList.querySelector('.claim-row:last-child .claim-text-input');
+                    if (newTextarea) newTextarea.value = sel;
+                }, 50);
+            }
+        }
+    });
+});
+
+// Reindex on form submit
+document.querySelector('form').addEventListener('submit', function() {
+    reindexClaims();
+});
+
+// Initial reindex
+reindexClaims();
+</script>
 {% endblock %}
