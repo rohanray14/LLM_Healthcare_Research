@@ -4,3 +4,4 @@
 .Rhistory
 __pycache__/
 *.pyc
+webapp/verification.db

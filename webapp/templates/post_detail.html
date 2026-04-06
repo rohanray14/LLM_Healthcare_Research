@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}{{ post.title }} - Verification{% endblock %}
+{% block content %}
+
+<!-- Navigation -->
+<div class="d-flex justify-content-between mb-3">
+    {% if prev_id %}
+    <a href="{{ url_for('post_detail', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous Post</a>
+    {% else %}<span></span>{% endif %}
+    <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-dark">Back to Dashboard</a>
+    {% if next_id %}
+    <a href="{{ url_for('post_detail', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next Post &rarr;</a>
+    {% else %}<span></span>{% endif %}
+</div>
+
+<form method="POST" action="{{ url_for('verify_post', post_id=post.id) }}">
+
+<!-- Post Info -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">{{ post.title }}</h5>
+        <a href="{{ post.reddit_url }}" target="_blank" class="btn btn-sm btn-reddit">View on Reddit</a>
+    </div>
+    <div class="card-body">
+        <div class="row mb-2">
+            <div class="col-auto"><span class="badge-label">{{ post.label1 or 'None' }}</span></div>
+            {% if post.label2 %}<div class="col-auto"><span class="badge-label-secondary">{{ post.label2 }}</span></div>{% endif %}
+            {% if post.label3 %}<div class="col-auto"><span class="badge-label-secondary">{{ post.label3 }}</span></div>{% endif %}
+            <div class="col-auto"><small class="text-muted">{{ post.num_comments }} comments</small></div>
+        </div>
+        <div class="post-body border rounded p-3 bg-light" style="max-height: 300px; overflow-y: auto;">
+            {{ post.body or '(No post body)' }}
+        </div>
+    </div>
+</div>
+
+<!-- Label Verification -->
+<div class="card mb-3">
+    <div class="card-header"><h6 class="mb-0">Classification Verification</h6></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="label1_correct" id="l1"
+                        {% if label_v and label_v.label1_correct %}checked{% endif %}>
+                    <label class="form-check-label" for="l1">
+                        Label 1 correct: <strong>{{ post.label1 or 'None' }}</strong>
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="label2_correct" id="l2"
+                        {% if label_v and label_v.label2_correct %}checked{% endif %}>
+                    <label class="form-check-label" for="l2">
+                        Label 2 correct: <strong>{{ post.label2 or 'None' }}</strong>
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="label3_correct" id="l3"
+                        {% if label_v and label_v.label3_correct %}checked{% endif %}>
+                    <label class="form-check-label" for="l3">
+                        Label 3 correct: <strong>{{ post.label3 or 'None' }}</strong>
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-3 g-3">
+            <div class="col-md-6">
+                <label class="form-label">Suggested Label (if incorrect)</label>
+                <select name="suggested_label" class="form-select form-select-sm">
+                    <option value="">-- None --</option>
+                    {% for l in labels %}
+                    <option value="{{ l }}" {% if label_v and label_v.suggested_label == l %}selected{% endif %}>{{ l }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Notes</label>
+                <input type="text" name="verification_notes" class="form-control form-control-sm"
+                    value="{{ label_v.notes if label_v else '' }}" placeholder="Any notes about this classification...">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- LLM Analysis -->
+{% if llm_outputs %}
+<div class="card mb-3">
+    <div class="card-header">
+        <h6 class="mb-0">LLM Analysis</h6>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-tabs" role="tablist">
+            {% for out in llm_outputs %}
+            <li class="nav-item">
+                <button class="nav-link {% if loop.first %}active{% endif %}" data-bs-toggle="tab"
+                    data-bs-target="#llm-{{ loop.index }}" type="button">
+                    {{ out.model_name or out.model_family }}
+                </button>
+            </li>
+            {% endfor %}
+        </ul>
+        <div class="tab-content pt-3">
+            {% for out in llm_outputs %}
+            <div class="tab-pane {% if loop.first %}show active{% endif %}" id="llm-{{ loop.index }}">
+                <p><strong>Summary:</strong> {{ out.summary or 'N/A' }}</p>
+                <p><strong>Data Quality:</strong> {{ out.data_quality or 'N/A' }}</p>
+
+                {% if out.unique_advice_json_parsed %}
+                <details class="mb-2">
+                    <summary><strong>Unique Advice ({{ out.unique_advice_json_parsed|length }} items)</strong></summary>
+                    <ul class="small mt-1">
+                        {% for adv in out.unique_advice_json_parsed %}
+                        <li>{{ adv.advice if adv is mapping else adv }}</li>
+                        {% endfor %}
+                    </ul>
+                </details>
+                {% endif %}
+
+                {% if out.divergences_json_parsed %}
+                <details class="mb-2">
+                    <summary><strong>Divergences ({{ out.divergences_json_parsed|length }})</strong></summary>
+                    <ul class="small mt-1">
+                        {% for div in out.divergences_json_parsed %}
+                        <li><em>{{ div.topic if div is mapping else div }}</em></li>
+                        {% endfor %}
+                    </ul>
+                </details>
+                {% endif %}
+
+                {% if out.clinically_relevant_notes_json_parsed %}
+                <details class="mb-2">
+                    <summary><strong>Clinical Notes ({{ out.clinically_relevant_notes_json_parsed|length }})</strong></summary>
+                    <ul class="small mt-1">
+                        {% for note in out.clinically_relevant_notes_json_parsed %}
+                        <li>{{ note }}</li>
+                        {% endfor %}
+                    </ul>
+                </details>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Comments -->
+<div class="card mb-3">
+    <div class="card-header"><h6 class="mb-0">Comments ({{ comments|length }})</h6></div>
+    <div class="card-body" style="max-height: 800px; overflow-y: auto;">
+        {% for comment in comments %}
+        <div class="card mb-2 comment-card">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <strong class="text-muted small">Comment #{{ comment.comment_index }}</strong>
+                    {% set cv = comment_vs.get(comment.comment_index) %}
+                    <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="flag_{{ comment.comment_index }}"
+                            id="rum_{{ comment.comment_index }}" value="rumor"
+                            {% if cv and cv.flag == 'rumor' %}checked{% endif %}>
+                        <label class="btn btn-outline-danger" for="rum_{{ comment.comment_index }}">Rumor</label>
+
+                        <input type="radio" class="btn-check" name="flag_{{ comment.comment_index }}"
+                            id="cred_{{ comment.comment_index }}" value="credible"
+                            {% if cv and cv.flag == 'credible' %}checked{% endif %}>
+                        <label class="btn btn-outline-success" for="cred_{{ comment.comment_index }}">Credible</label>
+
+                        <input type="radio" class="btn-check" name="flag_{{ comment.comment_index }}"
+                            id="unc_{{ comment.comment_index }}" value="unclear"
+                            {% if cv and cv.flag == 'unclear' %}checked{% endif %}>
+                        <label class="btn btn-outline-warning" for="unc_{{ comment.comment_index }}">Unclear</label>
+                    </div>
+                </div>
+                <p class="mb-1 small">{{ comment.text }}</p>
+                <input type="text" name="note_{{ comment.comment_index }}" class="form-control form-control-sm mt-1"
+                    value="{{ cv.note if cv else '' }}" placeholder="Optional note...">
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Submit -->
+<div class="d-grid mb-4">
+    <button type="submit" class="btn btn-lg btn-primary">Save Verification</button>
+</div>
+
+</form>
+
+<!-- Navigation (bottom) -->
+<div class="d-flex justify-content-between mb-4">
+    {% if prev_id %}
+    <a href="{{ url_for('post_detail', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>
+    {% else %}<span></span>{% endif %}
+    {% if next_id %}
+    <a href="{{ url_for('post_detail', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
+    {% else %}<span></span>{% endif %}
+</div>
+
+{% endblock %}

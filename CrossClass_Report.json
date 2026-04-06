@@ -1,8 +1,8 @@
 {
   "insights": [
     "Classes with highest divergence frequency: Co-occuring Drug Usage (rank 1).",
-    "Classes with highest divergence frequency: Others (rank 2).",
-    "Classes with highest divergence frequency: Psycho-Physical Effects (rank 3).",
+    "Classes with highest divergence frequency: MOUD Administration (rank 2).",
+    "Classes with highest divergence frequency: Others (rank 3).",
     "Risk/clinical note concentration: Access Logistics ranks 1 in clinically relevant patterns.",
     "Risk/clinical note concentration: Co-occuring Drug Usage ranks 2 in clinically relevant patterns.",
     "Risk/clinical note concentration: MOUD Administration ranks 3 in clinically relevant patterns.",
@@ -17,7 +17,7 @@
     "Access Logistics": {
       "divergence_count": 1,
       "risk_note_count": 2,
-      "theme_count": 3
+      "theme_count": 1
     },
     "Co-occuring Drug Usage": {
       "divergence_count": 2,
@@ -25,9 +25,9 @@
       "theme_count": 3
     },
     "MOUD Administration": {
-      "divergence_count": 1,
+      "divergence_count": 2,
       "risk_note_count": 2,
-      "theme_count": 3
+      "theme_count": 1
     },
     "Others": {
       "divergence_count": 2,
@@ -35,9 +35,9 @@
       "theme_count": 1
     },
     "Psycho-Physical Effects": {
-      "divergence_count": 2,
+      "divergence_count": 1,
       "risk_note_count": 2,
-      "theme_count": 4
+      "theme_count": 3
     },
     "Tapering": {
       "divergence_count": 2,
@@ -45,5 +45,5 @@
       "theme_count": 1
     }
   },
-  "comparison_table": "| Class | Post count | Divergence axes | Risk/clinical notes |\n|-------|------------|-----------------|---------------------|\n| Access Logistics | 12 | 1 | 2 |\n| Co-occuring Drug Usage | 16 | 2 | 2 |\n| MOUD Administration | 12 | 1 | 2 |\n| Others | 20 | 2 | 2 |\n| Psycho-Physical Effects | 18 | 2 | 2 |\n| Tapering | 20 | 2 | 2 |"
+  "comparison_table": "| Class | Post count | Divergence axes | Risk/clinical notes |\n|-------|------------|-----------------|---------------------|\n| Access Logistics | 52 | 1 | 2 |\n| Co-occuring Drug Usage | 56 | 2 | 2 |\n| MOUD Administration | 52 | 2 | 2 |\n| Others | 60 | 2 | 2 |\n| Psycho-Physical Effects | 58 | 1 | 2 |\n| Tapering | 60 | 2 | 2 |"
 }

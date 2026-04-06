@@ -3,8 +3,8 @@
 ## Insights
 
 - Classes with highest divergence frequency: Co-occuring Drug Usage (rank 1).
-- Classes with highest divergence frequency: Others (rank 2).
-- Classes with highest divergence frequency: Psycho-Physical Effects (rank 3).
+- Classes with highest divergence frequency: MOUD Administration (rank 2).
+- Classes with highest divergence frequency: Others (rank 3).
 - Risk/clinical note concentration: Access Logistics ranks 1 in clinically relevant patterns.
 - Risk/clinical note concentration: Co-occuring Drug Usage ranks 2 in clinically relevant patterns.
 - Risk/clinical note concentration: MOUD Administration ranks 3 in clinically relevant patterns.
@@ -19,9 +19,9 @@
 
 | Class | Post count | Divergence axes | Risk/clinical notes |
 |-------|------------|-----------------|---------------------|
-| Access Logistics | 12 | 1 | 2 |
-| Co-occuring Drug Usage | 16 | 2 | 2 |
-| MOUD Administration | 12 | 1 | 2 |
-| Others | 20 | 2 | 2 |
-| Psycho-Physical Effects | 18 | 2 | 2 |
-| Tapering | 20 | 2 | 2 |
+| Access Logistics | 52 | 1 | 2 |
+| Co-occuring Drug Usage | 56 | 2 | 2 |
+| MOUD Administration | 52 | 2 | 2 |
+| Others | 60 | 2 | 2 |
+| Psycho-Physical Effects | 58 | 1 | 2 |
+| Tapering | 60 | 2 | 2 |

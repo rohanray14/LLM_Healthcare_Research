@@ -1,0 +1,252 @@
+:root {
+    --primary: #4f46e5;
+    --primary-light: #6366f1;
+    --primary-bg: #eef2ff;
+    --accent: #0d9488;
+    --accent-light: #14b8a6;
+    --surface: #f8fafc;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --danger: #ef4444;
+    --success: #10b981;
+    --warning: #f59e0b;
+}
+
+body {
+    background: var(--surface);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Navbar */
+.navbar {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light)) !important;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.15);
+}
+.navbar-brand {
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+/* Cards */
+.card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    overflow: hidden;
+}
+.card-header {
+    background: white;
+    border-bottom: 1px solid var(--border);
+    padding: 0.75rem 1.25rem;
+}
+
+/* Progress bar */
+.progress {
+    border-radius: 999px;
+    background: #e2e8f0;
+}
+.progress-bar {
+    background: linear-gradient(90deg, var(--accent), var(--accent-light));
+    border-radius: 999px;
+    font-weight: 600;
+}
+
+/* Badges */
+.badge-label {
+    background: var(--primary-bg);
+    color: var(--primary);
+    border: 1px solid #c7d2fe;
+    font-weight: 500;
+    padding: 0.35em 0.75em;
+    border-radius: 6px;
+}
+.badge-label-secondary {
+    background: #f1f5f9;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    font-weight: 500;
+    padding: 0.35em 0.75em;
+    border-radius: 6px;
+}
+.badge-verified {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+    font-weight: 600;
+    padding: 0.35em 0.75em;
+    border-radius: 6px;
+}
+.badge-pending {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    font-weight: 600;
+    padding: 0.35em 0.75em;
+    border-radius: 6px;
+}
+
+/* Table */
+.table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+.table thead th {
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: none;
+    padding: 0.75rem 1rem;
+}
+.table thead th:first-child { border-radius: 10px 0 0 0; }
+.table thead th:last-child { border-radius: 0 10px 0 0; }
+.table tbody tr {
+    transition: background 0.15s;
+}
+.table tbody tr:hover {
+    background: var(--primary-bg);
+}
+.table td {
+    vertical-align: middle;
+    padding: 0.65rem 1rem;
+    border-color: var(--border);
+}
+
+/* Buttons */
+.btn-primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    border-radius: 8px;
+    font-weight: 600;
+}
+.btn-primary:hover {
+    background: var(--primary-light);
+    border-color: var(--primary-light);
+}
+.btn-outline-primary {
+    color: var(--primary);
+    border-color: var(--primary);
+    border-radius: 8px;
+    font-weight: 500;
+}
+.btn-outline-primary:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+.btn-reddit {
+    background: #ff4500;
+    border-color: #ff4500;
+    color: white;
+    border-radius: 8px;
+    font-weight: 600;
+}
+.btn-reddit:hover {
+    background: #e03d00;
+    color: white;
+}
+
+/* Comment cards */
+.comment-card {
+    border: 1px solid var(--border);
+    border-left: 4px solid #cbd5e1;
+    border-radius: 8px;
+    transition: border-color 0.2s, background 0.2s;
+}
+.comment-card:has(input[value="rumor"]:checked) {
+    border-left-color: var(--danger);
+    background: #fef2f2;
+}
+.comment-card:has(input[value="credible"]:checked) {
+    border-left-color: var(--success);
+    background: #ecfdf5;
+}
+.comment-card:has(input[value="unclear"]:checked) {
+    border-left-color: var(--warning);
+    background: #fffbeb;
+}
+
+/* Flag button group */
+.btn-check + .btn-outline-danger {
+    border-radius: 6px 0 0 6px;
+    font-weight: 500;
+}
+.btn-check + .btn-outline-success {
+    font-weight: 500;
+}
+.btn-check + .btn-outline-warning {
+    border-radius: 0 6px 6px 0;
+    font-weight: 500;
+}
+
+/* Post body */
+.post-body {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+/* Form controls */
+.form-control, .form-select {
+    border-radius: 8px;
+    border-color: var(--border);
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-light);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+/* Login card */
+.login-card {
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    border: none;
+}
+.login-card .card-header {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: white;
+    border-radius: 16px 16px 0 0;
+    padding: 1.5rem;
+}
+.login-card .card-header h4 {
+    margin: 0;
+    font-weight: 700;
+}
+
+/* Pagination */
+.page-link {
+    color: var(--primary);
+    border-radius: 8px;
+    margin: 0 2px;
+}
+.page-item.active .page-link {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+/* Nav tabs (LLM outputs) */
+.nav-tabs .nav-link {
+    border-radius: 8px 8px 0 0;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+.nav-tabs .nav-link.active {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Alert */
+.alert { border-radius: 10px; }
