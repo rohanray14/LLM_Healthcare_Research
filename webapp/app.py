@@ -2,11 +2,15 @@ from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import json
 
-from config import SECRET_KEY, USERS, LABELS
+from config import SECRET_KEY, USERS, LABELS, COMMENT_CODES
 from models import (
     init_db, posts_loaded, get_posts, get_post, get_llm_outputs,
     get_adjacent_posts, get_existing_verifications, save_verification, get_progress,
     get_claims, save_claims,
+    get_comment_codes, save_comment_codes, get_post_code_summaries,
+    get_comment_spans, save_comment_spans, delete_comment_span, get_annotation_progress,
+    get_claim_spans_for_review, get_expert_reviews, save_expert_reviews,
+    get_posts_with_claims, get_expert_review_progress,
 )
 
 app = Flask(__name__)
@@ -34,9 +38,13 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        if USERS.get(username) == password:
+        user = USERS.get(username)
+        if user and user["password"] == password:
             session["username"] = username
-            return redirect(url_for("dashboard"))
+            session["role"] = user["role"]
+            if user["role"] == "annotator":
+                return redirect(url_for("annotator_dashboard"))
+            return redirect(url_for("expert_review_dashboard"))
         flash("Invalid credentials", "danger")
     return render_template("login.html")
 
@@ -204,6 +212,156 @@ def export_data():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=verifications_export.csv"},
     )
+
+
+# ── Annotator (non-expert) routes ──────────────────────────────────
+
+@app.route("/annotate")
+@login_required
+def annotator_dashboard():
+    search = request.args.get("search", "")
+    code_filter = request.args.getlist("codes")  # multi-select
+    page = int(request.args.get("page", 1))
+
+    posts, total = get_posts(
+        search=search or None,
+        page=page,
+        per_page=25,
+        username=session["username"],
+    )
+    progress = get_annotation_progress(session["username"])
+    total_pages = max(1, (total + 24) // 25)
+
+    # Get code summaries for displayed posts
+    post_ids = [p["id"] for p in posts]
+    code_summaries = get_post_code_summaries(post_ids, session["username"])
+
+    # Filter by codes if requested (client-side would be simpler but let's do server-side)
+    if code_filter:
+        filtered_posts = []
+        for p in posts:
+            post_codes = code_summaries.get(p["id"], [])
+            if any(c in post_codes for c in code_filter):
+                filtered_posts.append(p)
+        posts = filtered_posts
+
+    return render_template(
+        "annotator_dashboard.html",
+        posts=posts,
+        total=total,
+        page=page,
+        total_pages=total_pages,
+        current_search=search,
+        current_codes=code_filter,
+        progress=progress,
+        code_summaries=code_summaries,
+        comment_codes=COMMENT_CODES,
+    )
+
+
+@app.route("/annotate/<post_id>")
+@login_required
+def annotate_post(post_id):
+    post, comments = get_post(post_id)
+    if not post:
+        flash("Post not found", "danger")
+        return redirect(url_for("annotator_dashboard"))
+
+    codes_by_comment = get_comment_codes(post_id, session["username"])
+    spans_by_comment = get_comment_spans(post_id, session["username"])
+    prev_id, next_id = get_adjacent_posts(post_id)
+
+    return render_template(
+        "annotate_post.html",
+        post=post,
+        comments=comments,
+        codes_by_comment=codes_by_comment,
+        spans_by_comment=spans_by_comment,
+        prev_id=prev_id,
+        next_id=next_id,
+        comment_codes=COMMENT_CODES,
+    )
+
+
+@app.route("/annotate/<post_id>/save_all", methods=["POST"])
+@login_required
+def save_all_annotations(post_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data"}), 400
+
+    # Save comment-level codes: {comment_index: [code1, code2, ...]}
+    codes = data.get("codes", {})
+    save_comment_codes(post_id, session["username"], codes)
+
+    # Save claim spans
+    spans = data.get("spans", [])
+    save_comment_spans(post_id, session["username"], spans)
+
+    return jsonify({"ok": True, "codes_saved": sum(len(v) for v in codes.values()), "spans_saved": len(spans)})
+
+
+# ── Expert claim review routes ─────────────────────────────────────
+
+EXPERT_VERDICTS = ["correct", "incorrect", "rumor", "unsure"]
+
+
+@app.route("/review")
+@login_required
+def expert_review_dashboard():
+    search = request.args.get("search", "")
+    page = int(request.args.get("page", 1))
+
+    posts, total = get_posts_with_claims(
+        page=page, per_page=25, search=search or None,
+    )
+    progress = get_expert_review_progress(session["username"])
+    total_pages = max(1, (total + 24) // 25)
+
+    return render_template(
+        "expert_review_dashboard.html",
+        posts=posts,
+        total=total,
+        page=page,
+        total_pages=total_pages,
+        current_search=search,
+        progress=progress,
+    )
+
+
+@app.route("/review/<post_id>")
+@login_required
+def review_post(post_id):
+    post, comments = get_post(post_id)
+    if not post:
+        flash("Post not found", "danger")
+        return redirect(url_for("expert_review_dashboard"))
+
+    claims_by_comment = get_claim_spans_for_review(post_id)
+    existing_reviews = get_expert_reviews(post_id, session["username"])
+    prev_id, next_id = get_adjacent_posts(post_id)
+
+    return render_template(
+        "review_post.html",
+        post=post,
+        comments=comments,
+        claims_by_comment=claims_by_comment,
+        existing_reviews=existing_reviews,
+        prev_id=prev_id,
+        next_id=next_id,
+        verdicts=EXPERT_VERDICTS,
+    )
+
+
+@app.route("/review/<post_id>/save", methods=["POST"])
+@login_required
+def save_review(post_id):
+    data = request.get_json()
+    if not data or "reviews" not in data:
+        return jsonify({"error": "No data"}), 400
+
+    save_expert_reviews(post_id, session["username"], data["reviews"])
+    return jsonify({"ok": True, "count": len(data["reviews"])})
 
 
 if __name__ == "__main__":

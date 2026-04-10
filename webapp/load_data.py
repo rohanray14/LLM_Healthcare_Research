@@ -17,13 +17,18 @@ def load_6k_data():
     post_count = 0
     comment_count = 0
 
+    def normalize_label(val):
+        if val and val.strip() == "Psycho-Physical Effects":
+            return "Psychophysical Effects"
+        return val
+
     for _, row in df.iterrows():
         post_id = str(row.iloc[0])
         title = str(row.iloc[1]) if pd.notna(row.iloc[1]) else ""
         body = str(row.iloc[2]) if pd.notna(row.iloc[2]) else ""
-        label1 = str(row.iloc[3]) if pd.notna(row.iloc[3]) else None
-        label2 = str(row.iloc[4]) if pd.notna(row.iloc[4]) else None
-        label3 = str(row.iloc[5]) if pd.notna(row.iloc[5]) else None
+        label1 = normalize_label(str(row.iloc[3])) if pd.notna(row.iloc[3]) else None
+        label2 = normalize_label(str(row.iloc[4])) if pd.notna(row.iloc[4]) else None
+        label3 = normalize_label(str(row.iloc[5])) if pd.notna(row.iloc[5]) else None
         num_comments = int(row.iloc[6]) if pd.notna(row.iloc[6]) else 0
         reddit_url = f"https://www.reddit.com/r/suboxone/comments/{post_id}/"
 

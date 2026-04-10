@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}Annotate: {{ post.title }}{% endblock %}
+{% block content %}
+
+<!-- Navigation -->
+<div class="d-flex justify-content-between mb-3">
+    {% if prev_id %}
+    <a href="{{ url_for('annotate_post', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous Post</a>
+    {% else %}<span></span>{% endif %}
+    <a href="{{ url_for('annotator_dashboard') }}" class="btn btn-sm btn-outline-dark">Back to Dashboard</a>
+    {% if next_id %}
+    <a href="{{ url_for('annotate_post', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next Post &rarr;</a>
+    {% else %}<span></span>{% endif %}
+</div>
+
+<!-- Code Legend (always visible, compact) -->
+<div class="code-legend mb-3">
+    {% for code, info in comment_codes.items() %}
+    <span class="code-legend-item" style="background: {{ info.color }}; border-color: {{ info.border_color }};" title="{{ info.description }}">
+        <strong>{{ code }}</strong> {{ info.label }}
+    </span>
+    {% endfor %}
+</div>
+
+<!-- Post Info -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">{{ post.title }}</h5>
+        <div>
+            <span class="badge-label me-1">{{ post.label1 or 'None' }}</span>
+            {% if post.label2 %}<span class="badge-label-secondary me-1">{{ post.label2 }}</span>{% endif %}
+            {% if post.label3 %}<span class="badge-label-secondary me-1">{{ post.label3 }}</span>{% endif %}
+            <a href="{{ post.reddit_url }}" target="_blank" class="btn btn-sm btn-reddit ms-1">Reddit</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="post-body border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto; font-size: 0.9rem;">
+            {{ post.body or '(No post body)' }}
+        </div>
+    </div>
+</div>
+
+<!-- Instructions -->
+<div class="alert alert-light border py-2 px-3 mb-3">
+    <strong>How to annotate:</strong> Highlight any text in a comment below, then click a code to label it. A span can have multiple codes. Click the <strong>&times;</strong> on any tag to remove it.
+</div>
+
+<!-- Floating code picker -->
+<div id="codePicker" class="code-picker-popup" style="display:none;">
+    {% for code, info in comment_codes.items() %}
+    <button type="button" class="code-pick-btn" data-code="{{ code }}"
+        style="background: {{ info.color }}; border-color: {{ info.border_color }};"
+        title="{{ info.label }}">{{ code }}</button>
+    {% endfor %}
+</div>
+
+<!-- Comments -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Comments ({{ comments|length }})</h6>
+        <span id="saveStatus" class="text-muted small">All changes saved</span>
+    </div>
+    <div class="card-body">
+        {% for comment in comments %}
+        <div class="comment-anno-card" id="comment-card-{{ comment.comment_index }}">
+            <div class="comment-anno-header">
+                <span class="text-muted">#{{ comment.comment_index }}</span>
+                <span class="span-summary" id="summary-{{ comment.comment_index }}"></span>
+            </div>
+            <div class="annotatable-text" id="comment-text-{{ comment.comment_index }}"
+                 data-ci="{{ comment.comment_index }}"
+                 data-raw="{{ comment.text|e }}">{{ comment.text }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Navigation (bottom) -->
+<div class="d-flex justify-content-between mb-4">
+    {% if prev_id %}
+    <a href="{{ url_for('annotate_post', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>
+    {% else %}<span></span>{% endif %}
+    {% if next_id %}
+    <a href="{{ url_for('annotate_post', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
+    {% else %}<span></span>{% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const POST_ID = "{{ post.id }}";
+const CODES = {
+    {% for code, info in comment_codes.items() %}
+    "{{ code }}": { color: "{{ info.color }}", border: "{{ info.border_color }}", label: "{{ info.label }}" },
+    {% endfor %}
+};
+
+/*
+  Data model:
+  spans[ci] = [ { start, end, text, codes: ["CLAIM", "EXPER", ...] }, ... ]
+  Spans do not overlap — if a new selection overlaps an existing span, it splits/merges.
+  Each span can have multiple codes.
+*/
+const spans = {};
+
+// Load existing from server
+{% for ci, span_list in spans_by_comment.items() %}
+spans[{{ ci }}] = [];
+{% for s in span_list %}
+(function(){
+    const ci = {{ ci }};
+    const existing = spans[ci].find(x => x.start === {{ s.span_start }} && x.end === {{ s.span_end }});
+    if (existing) {
+        if (!existing.codes.includes("{{ s.code }}")) existing.codes.push("{{ s.code }}");
+    } else {
+        spans[ci].push({ start: {{ s.span_start }}, end: {{ s.span_end }}, text: {{ s.span_text|tojson }}, codes: ["{{ s.code }}"] });
+    }
+})();
+{% endfor %}
+{% endfor %}
+
+// Render all on load
+document.addEventListener('DOMContentLoaded', () => {
+    for (const ci of Object.keys(spans)) render(parseInt(ci));
+});
+
+// ─── Selection handling ───
+const picker = document.getElementById('codePicker');
+let pending = null;
+
+document.addEventListener('mouseup', e => {
+    if (picker.contains(e.target)) return;
+
+    const sel = window.getSelection();
+    const text = sel.toString().trim();
+    if (text.length < 2) { picker.style.display = 'none'; pending = null; return; }
+
+    const anchor = sel.anchorNode?.parentElement?.closest('.annotatable-text')
+                || sel.anchorNode?.closest?.('.annotatable-text');
+    const focus = sel.focusNode?.parentElement?.closest('.annotatable-text')
+               || sel.focusNode?.closest?.('.annotatable-text');
+    if (!anchor || anchor !== focus) { picker.style.display = 'none'; pending = null; return; }
+
+    const ci = parseInt(anchor.dataset.ci);
+    const raw = anchor.dataset.raw;
+
+    // Find position in raw text
+    const start = raw.indexOf(text);
+    if (start === -1) { picker.style.display = 'none'; pending = null; return; }
+
+    pending = { ci, start, end: start + text.length, text };
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    picker.style.display = 'flex';
+    picker.style.top = (window.scrollY + rect.bottom + 6) + 'px';
+    picker.style.left = Math.max(8, window.scrollX + rect.left) + 'px';
+    updatePickerState(ci, start, start + text.length);
+});
+
+// Code button click — stays open so you can pick multiple codes
+document.querySelectorAll('.code-pick-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        if (!pending) return;
+        const code = this.dataset.code;
+        const { ci, start, end, text } = pending;
+
+        if (!spans[ci]) spans[ci] = [];
+
+        // Check if this exact span already exists
+        let existing = spans[ci].find(s => s.start === start && s.end === end);
+        if (existing) {
+            // Toggle code on/off
+            const idx = existing.codes.indexOf(code);
+            if (idx === -1) {
+                existing.codes.push(code);
+            } else {
+                existing.codes.splice(idx, 1);
+                // Remove span entirely if no codes left
+                if (existing.codes.length === 0) {
+                    spans[ci] = spans[ci].filter(s => s !== existing);
+                }
+            }
+        } else {
+            spans[ci].push({ start, end, text, codes: [code] });
+            spans[ci].sort((a, b) => a.start - b.start);
+        }
+
+        updatePickerState(ci, start, end);
+        render(ci);
+        markDirty();
+    });
+});
+
+function updatePickerState(ci, start, end) {
+    const span = (spans[ci] || []).find(s => s.start === start && s.end === end);
+    const activeCodes = span ? span.codes : [];
+    document.querySelectorAll('.code-pick-btn').forEach(btn => {
+        if (activeCodes.includes(btn.dataset.code)) {
+            btn.classList.add('code-pick-active');
+        } else {
+            btn.classList.remove('code-pick-active');
+        }
+    });
+}
+
+// Click an existing highlight to reopen picker and toggle codes
+function openPickerForSpan(event, ci, start, end, text) {
+    event.stopPropagation();
+    pending = { ci, start, end, text };
+    updatePickerState(ci, start, end);
+
+    const rect = event.target.closest('.anno-mark').getBoundingClientRect();
+    picker.style.display = 'flex';
+    picker.style.top = (window.scrollY + rect.bottom + 6) + 'px';
+    picker.style.left = Math.max(8, window.scrollX + rect.left) + 'px';
+}
+
+// Click outside picker to dismiss
+document.addEventListener('mousedown', e => {
+    if (!picker.contains(e.target) && !e.target.closest('.annotatable-text') && !e.target.closest('.anno-mark')) {
+        picker.style.display = 'none';
+        pending = null;
+        document.querySelectorAll('.code-pick-btn').forEach(b => b.classList.remove('code-pick-active'));
+    }
+});
+
+// ─── Rendering ───
+function render(ci) {
+    const el = document.getElementById('comment-text-' + ci);
+    const raw = el.dataset.raw;
+    const list = spans[ci] || [];
+
+    if (list.length === 0) {
+        el.innerHTML = esc(raw);
+        updateSummary(ci);
+        return;
+    }
+
+    let html = '';
+    let cursor = 0;
+    for (const span of list) {
+        if (span.start > cursor) html += esc(raw.slice(cursor, span.start));
+
+        // Build the highlight with code tags
+        const topCode = span.codes[0];
+        const info = CODES[topCode];
+        const codeTags = span.codes.map(c =>
+            `<sup class="span-code-sup" style="color:${CODES[c].border}; cursor:pointer;"
+                  onclick="event.stopPropagation(); removeCode(${ci}, ${span.start}, '${c}')"
+                  title="Click to remove ${c}">${c} &times;</sup>`
+        ).join(' ');
+
+        html += `<mark class="anno-mark" style="background:${info.color}; border-bottom:2px solid ${info.border};"
+                    onclick="openPickerForSpan(event, ${ci}, ${span.start}, ${span.end}, ${JSON.stringify(span.text).replace(/"/g, '&quot;')})">${esc(span.text)}${codeTags}</mark>`;
+        cursor = span.end;
+    }
+    if (cursor < raw.length) html += esc(raw.slice(cursor));
+    el.innerHTML = html;
+    updateSummary(ci);
+}
+
+function updateSummary(ci) {
+    const el = document.getElementById('summary-' + ci);
+    const list = spans[ci] || [];
+    if (list.length === 0) { el.innerHTML = ''; return; }
+
+    const allCodes = new Set();
+    list.forEach(s => s.codes.forEach(c => allCodes.add(c)));
+    let html = '';
+    allCodes.forEach(c => {
+        html += `<span class="code-tag-sm" style="background:${CODES[c].color}; border-color:${CODES[c].border};">${c}</span> `;
+    });
+    el.innerHTML = html;
+}
+
+function removeCode(ci, start, code) {
+    if (!spans[ci]) return;
+    const span = spans[ci].find(s => s.start === start);
+    if (!span) return;
+    span.codes = span.codes.filter(c => c !== code);
+    if (span.codes.length === 0) {
+        spans[ci] = spans[ci].filter(s => s !== span);
+    }
+    render(ci);
+    markDirty();
+}
+
+function esc(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+}
+
+// ─── Auto-save ───
+let saveTimer = null;
+const statusEl = document.getElementById('saveStatus');
+
+function markDirty() {
+    statusEl.textContent = 'Unsaved changes...';
+    statusEl.className = 'text-warning small';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveAll, 1000); // auto-save after 1s of inactivity
+}
+
+function saveAll() {
+    clearTimeout(saveTimer);
+    const flat = [];
+    const codes = {};
+    for (const [ci, list] of Object.entries(spans)) {
+        const codeSet = new Set();
+        for (const span of list) {
+            for (const code of span.codes) {
+                flat.push({
+                    comment_index: parseInt(ci),
+                    span_start: span.start,
+                    span_end: span.end,
+                    span_text: span.text,
+                    code: code,
+                    note: '',
+                });
+                codeSet.add(code);
+            }
+        }
+        codes[ci] = Array.from(codeSet);
+    }
+
+    statusEl.textContent = 'Saving...';
+    statusEl.className = 'text-muted small';
+
+    fetch(`/annotate/${POST_ID}/save_all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codes, spans: flat }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            statusEl.textContent = 'All changes saved';
+            statusEl.className = 'text-success small';
+        }
+    })
+    .catch(err => {
+        statusEl.textContent = 'Save failed — retrying...';
+        statusEl.className = 'text-danger small';
+        saveTimer = setTimeout(saveAll, 3000);
+    });
+}
+
+// Escape key hides picker
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { picker.style.display = 'none'; pending = null; }
+});
+</script>
+{% endblock %}

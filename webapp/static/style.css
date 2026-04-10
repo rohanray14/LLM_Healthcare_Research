@@ -271,5 +271,179 @@ body {
     padding: 0.15rem 0.5rem;
 }
 
+/* ── Code legend bar ── */
+.code-legend {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.code-legend-item {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border: 1.5px solid;
+    border-radius: 6px;
+}
+
+/* ── Floating code picker popup ── */
+.code-picker-popup {
+    position: absolute;
+    z-index: 1050;
+    display: flex;
+    gap: 4px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+    padding: 6px 10px;
+}
+.code-pick-btn {
+    border: 2px solid;
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+.code-pick-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.code-pick-btn.code-pick-active {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.3);
+    opacity: 1;
+}
+.code-pick-btn.code-pick-active::after {
+    content: " \2713";
+    font-size: 0.7em;
+}
+
+/* ── Comment annotation cards ── */
+.comment-anno-card {
+    border: 1px solid var(--border);
+    border-left: 4px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    background: white;
+}
+.comment-anno-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+}
+
+/* ── Annotatable text ── */
+.annotatable-text {
+    line-height: 1.9;
+    font-size: 0.95rem;
+    cursor: text;
+    user-select: text;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.annotatable-text::selection {
+    background: #a5b4fc;
+}
+
+/* Highlighted spans */
+.anno-mark {
+    padding: 1px 2px;
+    border-radius: 3px;
+    cursor: default;
+}
+.span-code-sup {
+    font-size: 0.6em;
+    font-weight: 700;
+    margin-left: 2px;
+    vertical-align: super;
+}
+.span-code-sup:hover {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+/* ── Small code tags (dashboard) ── */
+.code-tag-sm {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border: 1.5px solid;
+    border-radius: 4px;
+    line-height: 1.4;
+}
+
+/* ── Expert claim review ── */
+.claim-review-card {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-left: 4px solid #ef4444;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+}
+.claim-review-text {
+    font-style: italic;
+    font-size: 0.9rem;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+.claim-review-meta {
+    margin-bottom: 4px;
+}
+.claim-highlight {
+    background: #fee2e2;
+    border-bottom: 2px solid #ef4444;
+    padding: 1px 2px;
+    border-radius: 3px;
+}
+
+/* Verdict buttons */
+.verdict-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.verdict-btn {
+    border: 2px solid;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.78rem;
+    padding: 3px 10px;
+    opacity: 0.6;
+    transition: all 0.15s;
+}
+.verdict-btn:hover { opacity: 1; }
+.verdict-btn.active { opacity: 1; box-shadow: 0 0 0 2px rgba(0,0,0,0.2); }
+
+.verdict-correct { background: #dcfce7; border-color: #22c55e; color: #166534; }
+.verdict-correct.active { background: #bbf7d0; }
+.verdict-incorrect { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+.verdict-incorrect.active { background: #fecaca; }
+.verdict-rumor { background: #fef9c3; border-color: #eab308; color: #854d0e; }
+.verdict-rumor.active { background: #fde68a; }
+.verdict-unsure { background: #f1f5f9; border-color: #94a3b8; color: #475569; }
+.verdict-unsure.active { background: #e2e8f0; }
+
+/* Verdict tags (legend) */
+.verdict-tag {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border: 1.5px solid;
+    border-radius: 5px;
+}
+.verdict-tag.verdict-correct { background: #dcfce7; border-color: #22c55e; color: #166534; }
+.verdict-tag.verdict-incorrect { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+.verdict-tag.verdict-rumor { background: #fef9c3; border-color: #eab308; color: #854d0e; }
+.verdict-tag.verdict-unsure { background: #f1f5f9; border-color: #94a3b8; color: #475569; }
+
 /* Alert */
 .alert { border-radius: 10px; }
