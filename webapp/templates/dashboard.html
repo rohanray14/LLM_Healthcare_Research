@@ -58,6 +58,7 @@
                 <th>Title</th>
                 <th>Label 1</th>
                 <th>Label 2</th>
+                <th>Label 3</th>
                 <th>Comments</th>
                 <th>Status</th>
                 <th>Action</th>
@@ -70,6 +71,7 @@
                 <td>{{ post.title[:80] }}{% if post.title|length > 80 %}...{% endif %}</td>
                 <td><span class="badge-label">{{ post.label1 or '-' }}</span></td>
                 <td><span class="badge-label-secondary">{{ post.label2 or '-' }}</span></td>
+                <td><span class="badge-label-secondary">{{ post.label3 or '-' }}</span></td>
                 <td>{{ post.num_comments }}</td>
                 <td>
                     {% if post.verifier_count > 0 %}

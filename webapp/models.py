@@ -84,6 +84,53 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_claims_post ON claim_annotations(post_id);
         CREATE INDEX IF NOT EXISTS idx_claims_comment ON claim_annotations(post_id, comment_index);
+
+        CREATE TABLE IF NOT EXISTS comment_spans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id TEXT REFERENCES posts(id),
+            comment_index INTEGER,
+            annotator_username TEXT,
+            span_start INTEGER NOT NULL,
+            span_end INTEGER NOT NULL,
+            span_text TEXT NOT NULL,
+            code TEXT NOT NULL CHECK(code IN ('CLAIM', 'EXPER', 'HEDGED', 'SUPPORT', 'REF', 'META-R')),
+            note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_comment_spans_post ON comment_spans(post_id);
+        CREATE INDEX IF NOT EXISTS idx_comment_spans_lookup ON comment_spans(post_id, comment_index, annotator_username);
+
+        CREATE TABLE IF NOT EXISTS comment_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id TEXT REFERENCES posts(id),
+            comment_index INTEGER,
+            annotator_username TEXT,
+            code TEXT NOT NULL CHECK(code IN ('CLAIM', 'EXPER', 'HEDGED', 'SUPPORT', 'REF', 'META-R')),
+            note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(post_id, comment_index, annotator_username, code)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_comment_codes_post ON comment_codes(post_id);
+        CREATE INDEX IF NOT EXISTS idx_comment_codes_lookup ON comment_codes(post_id, annotator_username);
+
+        CREATE TABLE IF NOT EXISTS expert_claim_reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id TEXT REFERENCES posts(id),
+            comment_index INTEGER,
+            span_start INTEGER NOT NULL,
+            span_end INTEGER NOT NULL,
+            span_text TEXT NOT NULL,
+            expert_username TEXT NOT NULL,
+            verdict TEXT NOT NULL CHECK(verdict IN ('correct', 'incorrect', 'rumor', 'unsure')),
+            note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(post_id, comment_index, span_start, span_end, expert_username)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_expert_reviews_post ON expert_claim_reviews(post_id);
+        CREATE INDEX IF NOT EXISTS idx_expert_reviews_lookup ON expert_claim_reviews(post_id, expert_username);
     """)
     conn.close()
 
@@ -300,6 +347,258 @@ def get_progress():
     ).fetchone()[0]
     conn.close()
     return {"total": total, "verified": verified, "comments_flagged": comments_flagged, "claims_annotated": claims_annotated}
+
+
+def get_comment_spans(post_id, username):
+    """Return spans grouped by comment_index."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM comment_spans WHERE post_id = ? AND annotator_username = ? ORDER BY comment_index, span_start",
+        (post_id, username),
+    ).fetchall()
+    conn.close()
+    spans_by_comment = {}
+    for row in rows:
+        ci = row["comment_index"]
+        if ci not in spans_by_comment:
+            spans_by_comment[ci] = []
+        spans_by_comment[ci].append(dict(row))
+    return spans_by_comment
+
+
+def save_comment_spans(post_id, username, spans_data):
+    """Replace all spans for this post/user with the new set."""
+    conn = get_db()
+    conn.execute(
+        "DELETE FROM comment_spans WHERE post_id = ? AND annotator_username = ?",
+        (post_id, username),
+    )
+    for span in spans_data:
+        conn.execute(
+            """INSERT INTO comment_spans
+                (post_id, comment_index, annotator_username, span_start, span_end, span_text, code, note)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                post_id,
+                span["comment_index"],
+                username,
+                span["span_start"],
+                span["span_end"],
+                span["span_text"],
+                span["code"],
+                span.get("note", ""),
+            ),
+        )
+    conn.commit()
+    conn.close()
+
+
+def delete_comment_span(span_id, username):
+    conn = get_db()
+    conn.execute(
+        "DELETE FROM comment_spans WHERE id = ? AND annotator_username = ?",
+        (span_id, username),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_comment_codes(post_id, username):
+    """Return codes grouped by comment_index: {ci: [code1, code2, ...]}"""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT comment_index, code FROM comment_codes WHERE post_id = ? AND annotator_username = ? ORDER BY comment_index",
+        (post_id, username),
+    ).fetchall()
+    conn.close()
+    codes_by_comment = {}
+    for row in rows:
+        ci = row["comment_index"]
+        if ci not in codes_by_comment:
+            codes_by_comment[ci] = []
+        codes_by_comment[ci].append(row["code"])
+    return codes_by_comment
+
+
+def save_comment_codes(post_id, username, codes_data):
+    """codes_data: {comment_index: [code1, code2, ...]}"""
+    conn = get_db()
+    conn.execute(
+        "DELETE FROM comment_codes WHERE post_id = ? AND annotator_username = ?",
+        (post_id, username),
+    )
+    for comment_index, codes in codes_data.items():
+        for code in codes:
+            conn.execute(
+                """INSERT OR IGNORE INTO comment_codes
+                    (post_id, comment_index, annotator_username, code)
+                   VALUES (?, ?, ?, ?)""",
+                (post_id, int(comment_index), username, code),
+            )
+    conn.commit()
+    conn.close()
+
+
+def get_post_code_summaries(post_ids, username):
+    """Return {post_id: set of codes} for the given posts and user."""
+    if not post_ids:
+        return {}
+    conn = get_db()
+    placeholders = ",".join("?" * len(post_ids))
+    rows = conn.execute(
+        f"SELECT post_id, code FROM comment_codes WHERE post_id IN ({placeholders}) AND annotator_username = ?",
+        list(post_ids) + [username],
+    ).fetchall()
+    conn.close()
+    summaries = {}
+    for row in rows:
+        pid = row["post_id"]
+        if pid not in summaries:
+            summaries[pid] = []
+        if row["code"] not in summaries[pid]:
+            summaries[pid].append(row["code"])
+    return summaries
+
+
+def get_annotation_progress(username):
+    conn = get_db()
+    total_posts = conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
+    annotated_posts = conn.execute(
+        "SELECT COUNT(DISTINCT post_id) FROM comment_codes WHERE annotator_username = ?",
+        (username,),
+    ).fetchone()[0]
+    total_coded = conn.execute(
+        "SELECT COUNT(*) FROM comment_codes WHERE annotator_username = ?",
+        (username,),
+    ).fetchone()[0]
+    claim_count = conn.execute(
+        "SELECT COUNT(*) FROM comment_codes WHERE annotator_username = ? AND code = 'CLAIM'",
+        (username,),
+    ).fetchone()[0]
+    total_spans = conn.execute(
+        "SELECT COUNT(*) FROM comment_spans WHERE annotator_username = ?",
+        (username,),
+    ).fetchone()[0]
+    conn.close()
+    return {
+        "total_posts": total_posts,
+        "annotated_posts": annotated_posts,
+        "total_coded": total_coded,
+        "claim_count": claim_count,
+        "total_spans": total_spans,
+    }
+
+
+def get_claim_spans_for_review(post_id):
+    """Get all CLAIM spans from all annotators for a given post."""
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT DISTINCT comment_index, span_start, span_end, span_text, annotator_username
+           FROM comment_spans
+           WHERE post_id = ? AND code = 'CLAIM'
+           ORDER BY comment_index, span_start""",
+        (post_id,),
+    ).fetchall()
+    conn.close()
+    claims_by_comment = {}
+    for row in rows:
+        ci = row["comment_index"]
+        if ci not in claims_by_comment:
+            claims_by_comment[ci] = []
+        claims_by_comment[ci].append(dict(row))
+    return claims_by_comment
+
+
+def get_expert_reviews(post_id, expert_username):
+    """Get existing expert reviews keyed by (comment_index, span_start, span_end)."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM expert_claim_reviews WHERE post_id = ? AND expert_username = ?",
+        (post_id, expert_username),
+    ).fetchall()
+    conn.close()
+    reviews = {}
+    for row in rows:
+        key = (row["comment_index"], row["span_start"], row["span_end"])
+        reviews[key] = dict(row)
+    return reviews
+
+
+def save_expert_reviews(post_id, expert_username, reviews_data):
+    """reviews_data: list of {comment_index, span_start, span_end, span_text, verdict, note}"""
+    conn = get_db()
+    for r in reviews_data:
+        conn.execute(
+            """INSERT INTO expert_claim_reviews
+                (post_id, comment_index, span_start, span_end, span_text, expert_username, verdict, note)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(post_id, comment_index, span_start, span_end, expert_username) DO UPDATE SET
+                verdict=excluded.verdict, note=excluded.note, created_at=CURRENT_TIMESTAMP
+            """,
+            (post_id, r["comment_index"], r["span_start"], r["span_end"],
+             r["span_text"], expert_username, r["verdict"], r.get("note", "")),
+        )
+    conn.commit()
+    conn.close()
+
+
+def get_posts_with_claims(page=1, per_page=25, search=None):
+    """Get posts that have at least one CLAIM span from annotators."""
+    conn = get_db()
+    conditions = []
+    params = []
+    if search:
+        conditions.append("(p.title LIKE ? OR p.id LIKE ?)")
+        params.extend([f"%{search}%", f"%{search}%"])
+
+    where = ""
+    if conditions:
+        where = "AND " + " AND ".join(conditions)
+
+    count_sql = f"""SELECT COUNT(DISTINCT p.id) FROM posts p
+        INNER JOIN comment_spans cs ON cs.post_id = p.id AND cs.code = 'CLAIM'
+        WHERE 1=1 {where}"""
+    total = conn.execute(count_sql, params).fetchone()[0]
+
+    sql = f"""SELECT p.*,
+        (SELECT COUNT(*) FROM comment_spans cs WHERE cs.post_id = p.id AND cs.code = 'CLAIM') as claim_count,
+        (SELECT COUNT(DISTINCT ecr.comment_index || '-' || ecr.span_start)
+         FROM expert_claim_reviews ecr WHERE ecr.post_id = p.id) as reviewed_count
+        FROM posts p
+        INNER JOIN comment_spans cs2 ON cs2.post_id = p.id AND cs2.code = 'CLAIM'
+        WHERE 1=1 {where}
+        GROUP BY p.id
+        ORDER BY claim_count DESC
+        LIMIT ? OFFSET ?"""
+    params.extend([per_page, (page - 1) * per_page])
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return rows, total
+
+
+def get_expert_review_progress(expert_username):
+    conn = get_db()
+    total_claims = conn.execute(
+        "SELECT COUNT(*) FROM comment_spans WHERE code = 'CLAIM'"
+    ).fetchone()[0]
+    reviewed = conn.execute(
+        "SELECT COUNT(*) FROM expert_claim_reviews WHERE expert_username = ?",
+        (expert_username,),
+    ).fetchone()[0]
+    posts_with_claims = conn.execute(
+        "SELECT COUNT(DISTINCT post_id) FROM comment_spans WHERE code = 'CLAIM'"
+    ).fetchone()[0]
+    posts_reviewed = conn.execute(
+        "SELECT COUNT(DISTINCT post_id) FROM expert_claim_reviews WHERE expert_username = ?",
+        (expert_username,),
+    ).fetchone()[0]
+    conn.close()
+    return {
+        "total_claims": total_claims,
+        "reviewed": reviewed,
+        "posts_with_claims": posts_with_claims,
+        "posts_reviewed": posts_reviewed,
+    }
 
 
 def posts_loaded():

@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Review Claims: {{ post.title }}{% endblock %}
+{% block content %}
+
+<!-- Navigation -->
+<div class="d-flex justify-content-between mb-3">
+    {% if prev_id %}
+    <a href="{{ url_for('review_post', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous Post</a>
+    {% else %}<span></span>{% endif %}
+    <a href="{{ url_for('expert_review_dashboard') }}" class="btn btn-sm btn-outline-dark">Back to Dashboard</a>
+    {% if next_id %}
+    <a href="{{ url_for('review_post', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next Post &rarr;</a>
+    {% else %}<span></span>{% endif %}
+</div>
+
+<!-- Post Info -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">{{ post.title }}</h5>
+        <div>
+            <span class="badge-label me-1">{{ post.label1 or 'None' }}</span>
+            {% if post.label2 %}<span class="badge-label-secondary me-1">{{ post.label2 }}</span>{% endif %}
+            {% if post.label3 %}<span class="badge-label-secondary me-1">{{ post.label3 }}</span>{% endif %}
+            <a href="{{ post.reddit_url }}" target="_blank" class="btn btn-sm btn-reddit ms-1">Reddit</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="post-body border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto; font-size: 0.9rem;">
+            {{ post.body or '(No post body)' }}
+        </div>
+    </div>
+</div>
+
+<!-- Verdict legend -->
+<div class="d-flex gap-2 mb-3 align-items-center">
+    <small class="text-muted fw-bold me-1">Verdicts:</small>
+    <span class="verdict-tag verdict-correct">Correct</span>
+    <span class="verdict-tag verdict-incorrect">Incorrect / Misinformation</span>
+    <span class="verdict-tag verdict-rumor">Rumor</span>
+    <span class="verdict-tag verdict-unsure">Unsure</span>
+    <span class="ms-auto" id="saveStatus"><small class="text-muted">All changes saved</small></span>
+</div>
+
+<!-- Comments with claims only -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h6 class="mb-0">Claims to Review</h6>
+    </div>
+    <div class="card-body">
+        {% for comment in comments %}
+        {% set claims = claims_by_comment.get(comment.comment_index, []) %}
+        {% if claims %}
+        <div class="comment-anno-card" id="comment-card-{{ comment.comment_index }}">
+            <div class="comment-anno-header">
+                <span class="text-muted">#{{ comment.comment_index }}</span>
+            </div>
+
+            <!-- Full comment text with claim spans highlighted -->
+            <div class="review-comment-text" id="comment-text-{{ comment.comment_index }}"
+                 data-ci="{{ comment.comment_index }}"
+                 data-raw="{{ comment.text|e }}">{{ comment.text }}</div>
+
+            <!-- Claim cards for review -->
+            <div class="mt-2">
+                {% for claim in claims %}
+                {% set key = (comment.comment_index, claim.span_start, claim.span_end) %}
+                {% set review = existing_reviews.get(key) %}
+                <div class="claim-review-card" data-ci="{{ comment.comment_index }}"
+                     data-start="{{ claim.span_start }}" data-end="{{ claim.span_end }}"
+                     data-text="{{ claim.span_text|e }}">
+                    <div class="claim-review-text">"{{ claim.span_text }}"</div>
+                    <div class="claim-review-meta">
+                        <small class="text-muted">Annotated by {{ claim.annotator_username }}</small>
+                    </div>
+                    <div class="verdict-buttons mt-1">
+                        <button type="button" class="btn btn-sm verdict-btn verdict-correct {% if review and review.verdict == 'correct' %}active{% endif %}"
+                            data-verdict="correct">Correct</button>
+                        <button type="button" class="btn btn-sm verdict-btn verdict-incorrect {% if review and review.verdict == 'incorrect' %}active{% endif %}"
+                            data-verdict="incorrect">Incorrect</button>
+                        <button type="button" class="btn btn-sm verdict-btn verdict-rumor {% if review and review.verdict == 'rumor' %}active{% endif %}"
+                            data-verdict="rumor">Rumor</button>
+                        <button type="button" class="btn btn-sm verdict-btn verdict-unsure {% if review and review.verdict == 'unsure' %}active{% endif %}"
+                            data-verdict="unsure">Unsure</button>
+                        <input type="text" class="form-control form-control-sm verdict-note ms-2"
+                            placeholder="Note (optional)" value="{{ review.note if review else '' }}"
+                            style="max-width: 250px;">
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Navigation (bottom) -->
+<div class="d-flex justify-content-between mb-4">
+    {% if prev_id %}
+    <a href="{{ url_for('review_post', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>
+    {% else %}<span></span>{% endif %}
+    {% if next_id %}
+    <a href="{{ url_for('review_post', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
+    {% else %}<span></span>{% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const POST_ID = "{{ post.id }}";
+const statusEl = document.getElementById('saveStatus');
+
+// Highlight claim spans in comment text
+document.querySelectorAll('.review-comment-text').forEach(el => {
+    const raw = el.dataset.raw;
+    const ci = parseInt(el.dataset.ci);
+    const cards = document.querySelectorAll(`.claim-review-card[data-ci="${ci}"]`);
+    if (cards.length === 0) return;
+
+    // Collect spans
+    const claimSpans = [];
+    cards.forEach(card => {
+        claimSpans.push({
+            start: parseInt(card.dataset.start),
+            end: parseInt(card.dataset.end),
+            text: card.dataset.text,
+        });
+    });
+    claimSpans.sort((a, b) => a.start - b.start);
+
+    // Render with highlights
+    let html = '';
+    let cursor = 0;
+    for (const span of claimSpans) {
+        if (span.start > cursor) html += esc(raw.slice(cursor, span.start));
+        html += `<mark class="claim-highlight">${esc(span.text)}</mark>`;
+        cursor = span.end;
+    }
+    if (cursor < raw.length) html += esc(raw.slice(cursor));
+    el.innerHTML = html;
+});
+
+// Verdict button clicks
+document.querySelectorAll('.verdict-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const card = this.closest('.claim-review-card');
+        // Toggle: deselect if already active
+        const wasActive = this.classList.contains('active');
+        card.querySelectorAll('.verdict-btn').forEach(b => b.classList.remove('active'));
+        if (!wasActive) this.classList.add('active');
+        autoSave();
+    });
+});
+
+// Note changes trigger save
+document.querySelectorAll('.verdict-note').forEach(input => {
+    let timer;
+    input.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(autoSave, 1000);
+    });
+});
+
+// Auto-save
+let saveTimer = null;
+function autoSave() {
+    clearTimeout(saveTimer);
+    statusEl.innerHTML = '<small class="text-warning">Unsaved changes...</small>';
+    saveTimer = setTimeout(doSave, 800);
+}
+
+function doSave() {
+    const reviews = [];
+    document.querySelectorAll('.claim-review-card').forEach(card => {
+        const activeBtn = card.querySelector('.verdict-btn.active');
+        if (!activeBtn) return;
+        reviews.push({
+            comment_index: parseInt(card.dataset.ci),
+            span_start: parseInt(card.dataset.start),
+            span_end: parseInt(card.dataset.end),
+            span_text: card.dataset.text,
+            verdict: activeBtn.dataset.verdict,
+            note: card.querySelector('.verdict-note').value || '',
+        });
+    });
+
+    statusEl.innerHTML = '<small class="text-muted">Saving...</small>';
+
+    fetch(`/review/${POST_ID}/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviews }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            statusEl.innerHTML = '<small class="text-success">All changes saved</small>';
+        }
+    })
+    .catch(() => {
+        statusEl.innerHTML = '<small class="text-danger">Save failed</small>';
+        saveTimer = setTimeout(doSave, 3000);
+    });
+}
+
+function esc(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+}
+</script>
+{% endblock %}
