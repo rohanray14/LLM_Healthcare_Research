@@ -12,6 +12,7 @@ USERS = {
     "admin": {"password": "admin123", "role": "expert"},
     "annotator1": {"password": "annotate123", "role": "annotator"},
     "annotator2": {"password": "annotate456", "role": "annotator"},
+    "annotator3": {"password": "annotate789", "role": "annotator"},
 }
 
 LABELS = [
