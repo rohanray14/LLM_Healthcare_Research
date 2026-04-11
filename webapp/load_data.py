@@ -33,7 +33,7 @@ def load_6k_data():
         reddit_url = f"https://www.reddit.com/r/suboxone/comments/{post_id}/"
 
         conn.execute(
-            "INSERT OR IGNORE INTO posts (id, title, body, label1, label2, label3, num_comments, reddit_url) VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO posts (id, title, body, label1, label2, label3, num_comments, reddit_url) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
             (post_id, title, body, label1, label2, label3, num_comments, reddit_url),
         )
         post_count += 1
