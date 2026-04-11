@@ -1,18 +1,49 @@
 import sqlite3
-from config import DATABASE_PATH
+from config import DATABASE_PATH, DATABASE_URL, USE_POSTGRES
+
+if USE_POSTGRES:
+    import psycopg2
+    import psycopg2.extras
+
+
+class DBConnection:
+    """Thin wrapper so the rest of the code works with both SQLite and PostgreSQL."""
+
+    def __init__(self, conn, is_pg):
+        self._conn = conn
+        self._is_pg = is_pg
+
+    def execute(self, sql, params=None):
+        cur = self._conn.cursor()
+        if self._is_pg:
+            sql = sql.replace("?", "%s")
+        cur.execute(sql, params or ())
+        return cur
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
 
 
 def get_db():
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+    if USE_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL)
+        conn.cursor_factory = psycopg2.extras.RealDictCursor
+        return DBConnection(conn, is_pg=True)
+    else:
+        conn = sqlite3.connect(DATABASE_PATH)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        return DBConnection(conn, is_pg=False)
 
 
 def init_db():
     conn = get_db()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS posts (
+
+    tables = [
+        """CREATE TABLE IF NOT EXISTS posts (
             id TEXT PRIMARY KEY,
             title TEXT,
             body TEXT,
@@ -21,19 +52,16 @@ def init_db():
             label3 TEXT,
             num_comments INTEGER,
             reddit_url TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS comments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        """CREATE TABLE IF NOT EXISTS comments (
+            id {serial} PRIMARY KEY,
             post_id TEXT REFERENCES posts(id),
             comment_index INTEGER,
             text TEXT
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
-
-        CREATE TABLE IF NOT EXISTS llm_outputs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)",
+        """CREATE TABLE IF NOT EXISTS llm_outputs (
+            id {serial} PRIMARY KEY,
             post_id TEXT REFERENCES posts(id),
             model_family TEXT,
             model_name TEXT,
@@ -42,12 +70,10 @@ def init_db():
             divergences_json TEXT,
             clinically_relevant_notes_json TEXT,
             data_quality TEXT
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_llm_post ON llm_outputs(post_id);
-
-        CREATE TABLE IF NOT EXISTS label_verifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_llm_post ON llm_outputs(post_id)",
+        """CREATE TABLE IF NOT EXISTS label_verifications (
+            id {serial} PRIMARY KEY,
             post_id TEXT REFERENCES posts(id),
             expert_username TEXT,
             label1_correct INTEGER,
@@ -57,81 +83,86 @@ def init_db():
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(post_id, expert_username)
-        );
-
-        CREATE TABLE IF NOT EXISTS comment_verifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        """CREATE TABLE IF NOT EXISTS comment_verifications (
+            id {serial} PRIMARY KEY,
             post_id TEXT REFERENCES posts(id),
             comment_index INTEGER,
             expert_username TEXT,
-            flag TEXT CHECK(flag IN ('rumor', 'credible', 'unclear')),
+            flag TEXT,
             note TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(post_id, comment_index, expert_username)
-        );
-
-        CREATE TABLE IF NOT EXISTS claim_annotations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        """CREATE TABLE IF NOT EXISTS claim_annotations (
+            id {serial} PRIMARY KEY,
             post_id TEXT REFERENCES posts(id),
             comment_index INTEGER,
             expert_username TEXT,
             claim_text TEXT NOT NULL,
-            credibility TEXT CHECK(credibility IN ('supported', 'unsupported', 'misleading', 'unclear')) NOT NULL,
-            evidence_type TEXT CHECK(evidence_type IN ('clinical', 'anecdotal', 'general_knowledge', 'misinformation')) NOT NULL,
+            credibility TEXT NOT NULL,
+            evidence_type TEXT NOT NULL,
             note TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_claims_post ON claim_annotations(post_id);
-        CREATE INDEX IF NOT EXISTS idx_claims_comment ON claim_annotations(post_id, comment_index);
-
-        CREATE TABLE IF NOT EXISTS comment_spans (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_claims_post ON claim_annotations(post_id)",
+        "CREATE INDEX IF NOT EXISTS idx_claims_comment ON claim_annotations(post_id, comment_index)",
+        """CREATE TABLE IF NOT EXISTS comment_spans (
+            id {serial} PRIMARY KEY,
             post_id TEXT REFERENCES posts(id),
             comment_index INTEGER,
             annotator_username TEXT,
             span_start INTEGER NOT NULL,
             span_end INTEGER NOT NULL,
             span_text TEXT NOT NULL,
-            code TEXT NOT NULL CHECK(code IN ('CLAIM', 'EXPER', 'HEDGED', 'SUPPORT', 'REF', 'META-R')),
+            code TEXT NOT NULL,
             note TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_comment_spans_post ON comment_spans(post_id);
-        CREATE INDEX IF NOT EXISTS idx_comment_spans_lookup ON comment_spans(post_id, comment_index, annotator_username);
-
-        CREATE TABLE IF NOT EXISTS comment_codes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_comment_spans_post ON comment_spans(post_id)",
+        "CREATE INDEX IF NOT EXISTS idx_comment_spans_lookup ON comment_spans(post_id, comment_index, annotator_username)",
+        """CREATE TABLE IF NOT EXISTS comment_codes (
+            id {serial} PRIMARY KEY,
             post_id TEXT REFERENCES posts(id),
             comment_index INTEGER,
             annotator_username TEXT,
-            code TEXT NOT NULL CHECK(code IN ('CLAIM', 'EXPER', 'HEDGED', 'SUPPORT', 'REF', 'META-R')),
+            code TEXT NOT NULL,
             note TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(post_id, comment_index, annotator_username, code)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_comment_codes_post ON comment_codes(post_id);
-        CREATE INDEX IF NOT EXISTS idx_comment_codes_lookup ON comment_codes(post_id, annotator_username);
-
-        CREATE TABLE IF NOT EXISTS expert_claim_reviews (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_comment_codes_post ON comment_codes(post_id)",
+        "CREATE INDEX IF NOT EXISTS idx_comment_codes_lookup ON comment_codes(post_id, annotator_username)",
+        """CREATE TABLE IF NOT EXISTS expert_claim_reviews (
+            id {serial} PRIMARY KEY,
             post_id TEXT REFERENCES posts(id),
             comment_index INTEGER,
             span_start INTEGER NOT NULL,
             span_end INTEGER NOT NULL,
             span_text TEXT NOT NULL,
             expert_username TEXT NOT NULL,
-            verdict TEXT NOT NULL CHECK(verdict IN ('correct', 'incorrect', 'rumor', 'unsure')),
+            verdict TEXT NOT NULL,
             note TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(post_id, comment_index, span_start, span_end, expert_username)
-        );
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_expert_reviews_post ON expert_claim_reviews(post_id)",
+        "CREATE INDEX IF NOT EXISTS idx_expert_reviews_lookup ON expert_claim_reviews(post_id, expert_username)",
+    ]
 
-        CREATE INDEX IF NOT EXISTS idx_expert_reviews_post ON expert_claim_reviews(post_id);
-        CREATE INDEX IF NOT EXISTS idx_expert_reviews_lookup ON expert_claim_reviews(post_id, expert_username);
-    """)
+    serial = "SERIAL" if USE_POSTGRES else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    # For Postgres, SERIAL already implies PRIMARY KEY-like behavior but we need to adjust
+    if USE_POSTGRES:
+        serial = "SERIAL"
+        for sql in tables:
+            sql = sql.replace("{serial} PRIMARY KEY", "SERIAL PRIMARY KEY")
+            conn.execute(sql)
+    else:
+        for sql in tables:
+            sql = sql.replace("{serial} PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT")
+            conn.execute(sql)
+
+    conn.commit()
     conn.close()
 
 
@@ -152,11 +183,9 @@ def get_posts(label_filter=None, verified_filter=None, search=None, page=1, per_
     if conditions:
         where = "WHERE " + " AND ".join(conditions)
 
-    # Get total count
     count_sql = f"SELECT COUNT(*) FROM posts p {where}"
     total = conn.execute(count_sql, params).fetchone()[0]
 
-    # Get posts with verification status
     sql = f"""
         SELECT p.*,
             (SELECT COUNT(DISTINCT expert_username) FROM label_verifications lv WHERE lv.post_id = p.id) as verifier_count,
@@ -308,7 +337,6 @@ def get_claims(post_id, username):
 
 def save_claims(post_id, username, claims_data):
     conn = get_db()
-    # Delete existing claims for this post/user and re-insert
     conn.execute(
         "DELETE FROM claim_annotations WHERE post_id = ? AND expert_username = ?",
         (post_id, username),
@@ -430,9 +458,10 @@ def save_comment_codes(post_id, username, codes_data):
     for comment_index, codes in codes_data.items():
         for code in codes:
             conn.execute(
-                """INSERT OR IGNORE INTO comment_codes
+                """INSERT INTO comment_codes
                     (post_id, comment_index, annotator_username, code)
-                   VALUES (?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(post_id, comment_index, annotator_username, code) DO NOTHING""",
                 (post_id, int(comment_index), username, code),
             )
     conn.commit()
@@ -440,11 +469,11 @@ def save_comment_codes(post_id, username, codes_data):
 
 
 def get_post_code_summaries(post_ids, username):
-    """Return {post_id: set of codes} for the given posts and user."""
+    """Return {post_id: list of codes} for the given posts and user."""
     if not post_ids:
         return {}
     conn = get_db()
-    placeholders = ",".join("?" * len(post_ids))
+    placeholders = ",".join(["?"] * len(post_ids))
     rows = conn.execute(
         f"SELECT post_id, code FROM comment_codes WHERE post_id IN ({placeholders}) AND annotator_username = ?",
         list(post_ids) + [username],

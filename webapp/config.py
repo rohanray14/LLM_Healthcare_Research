@@ -1,8 +1,10 @@
 import os
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "change-me-in-production-abc123")
+DATABASE_URL = os.environ.get("DATABASE_URL")  # PostgreSQL on Render
 DATABASE_PATH = os.environ.get("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "verification.db"))
 DATA_DIR = os.environ.get("DATA_DIR", os.path.dirname(os.path.dirname(__file__)))
+USE_POSTGRES = DATABASE_URL is not None
 
 USERS = {
     "dr_smith": {"password": "password123", "role": "expert"},
