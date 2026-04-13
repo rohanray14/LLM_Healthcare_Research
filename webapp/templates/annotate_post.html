@@ -42,15 +42,18 @@
 
 <!-- Instructions -->
 <div class="alert alert-light border py-2 px-3 mb-3">
-    <strong>How to annotate:</strong> Highlight any text in a comment below, then click a code to label it. A span can have multiple codes. Click the <strong>&times;</strong> on any tag to remove it.
+    <strong>How to annotate:</strong> Use the <span style="background:#fee2e2; border:1px solid #ef4444; padding:1px 6px; border-radius:4px; font-weight:600; font-size:0.85rem;">CLAIM</span> buttons or highlight text to mark confident claims at the span level.
+    Use the toggle buttons below each comment to assign other codes (EXPER, HEDGED, etc.) at the <strong>comment level</strong>.
 </div>
 
-<!-- Floating code picker -->
+<!-- Floating code picker (CLAIM only — span-level) -->
 <div id="codePicker" class="code-picker-popup" style="display:none;">
     {% for code, info in comment_codes.items() %}
+    {% if info.triggers_spans %}
     <button type="button" class="code-pick-btn" data-code="{{ code }}"
         style="background: {{ info.color }}; border-color: {{ info.border_color }};"
         title="{{ info.label }}">{{ code }}</button>
+    {% endif %}
     {% endfor %}
 </div>
 
@@ -70,6 +73,17 @@
             <div class="annotatable-text" id="comment-text-{{ comment.comment_index }}"
                  data-ci="{{ comment.comment_index }}"
                  data-raw="{{ comment.text|e }}">{{ comment.text }}</div>
+            <!-- Comment-level code toggles (non-CLAIM) -->
+            <div class="comment-code-toggles" id="toggles-{{ comment.comment_index }}" data-ci="{{ comment.comment_index }}">
+                <span class="toggle-label">Codes:</span>
+                {% for code, info in comment_codes.items() %}
+                {% if not info.triggers_spans %}
+                <button type="button" class="code-toggle-btn" data-code="{{ code }}" data-ci="{{ comment.comment_index }}"
+                    style="--toggle-bg: {{ info.color }}; --toggle-border: {{ info.border_color }};"
+                    title="{{ info.description }}">{{ code }}</button>
+                {% endif %}
+                {% endfor %}
+            </div>
         </div>
         {% endfor %}
     </div>
@@ -92,19 +106,19 @@
 const POST_ID = "{{ post.id }}";
 const CODES = {
     {% for code, info in comment_codes.items() %}
-    "{{ code }}": { color: "{{ info.color }}", border: "{{ info.border_color }}", label: "{{ info.label }}" },
+    "{{ code }}": { color: "{{ info.color }}", border: "{{ info.border_color }}", label: "{{ info.label }}", triggersSpans: {{ info.triggers_spans|tojson }} },
     {% endfor %}
 };
 
 /*
   Data model:
-  spans[ci] = [ { start, end, text, codes: ["CLAIM", "EXPER", ...] }, ... ]
-  Spans do not overlap — if a new selection overlaps an existing span, it splits/merges.
-  Each span can have multiple codes.
+  - spans[ci] = [ { start, end, text, codes: ["CLAIM"] }, ... ]  (span-level, CLAIM only)
+  - commentCodes[ci] = ["EXPER", "SUPPORT", ...]  (comment-level, non-CLAIM codes)
 */
 const spans = {};
+const commentCodes = {};
 
-// Load existing from server
+// Load existing spans from server (CLAIM only)
 {% for ci, span_list in spans_by_comment.items() %}
 spans[{{ ci }}] = [];
 {% for s in span_list %}
@@ -120,9 +134,22 @@ spans[{{ ci }}] = [];
 {% endfor %}
 {% endfor %}
 
+// Load existing comment-level codes from server (exclude CLAIM — it's span-level)
+{% for ci, code_list in codes_by_comment.items() %}
+commentCodes[{{ ci }}] = {{ code_list|tojson }}.filter(c => !CODES[c]?.triggersSpans);
+{% endfor %}
+
 // Render all on load
 document.addEventListener('DOMContentLoaded', () => {
     for (const ci of Object.keys(spans)) render(parseInt(ci));
+    // Activate toggle buttons for existing comment codes
+    for (const [ci, codes] of Object.entries(commentCodes)) {
+        for (const code of codes) {
+            const btn = document.querySelector(`.code-toggle-btn[data-ci="${ci}"][data-code="${code}"]`);
+            if (btn) btn.classList.add('code-toggle-active');
+        }
+    }
+    updateAllSummaries();
 });
 
 // ─── Selection handling ───
@@ -159,7 +186,7 @@ document.addEventListener('mouseup', e => {
     updatePickerState(ci, start, start + text.length);
 });
 
-// Code button click — stays open so you can pick multiple codes
+// Code button click (CLAIM span picker)
 document.querySelectorAll('.code-pick-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         if (!pending) return;
@@ -168,16 +195,13 @@ document.querySelectorAll('.code-pick-btn').forEach(btn => {
 
         if (!spans[ci]) spans[ci] = [];
 
-        // Check if this exact span already exists
         let existing = spans[ci].find(s => s.start === start && s.end === end);
         if (existing) {
-            // Toggle code on/off
             const idx = existing.codes.indexOf(code);
             if (idx === -1) {
                 existing.codes.push(code);
             } else {
                 existing.codes.splice(idx, 1);
-                // Remove span entirely if no codes left
                 if (existing.codes.length === 0) {
                     spans[ci] = spans[ci].filter(s => s !== existing);
                 }
@@ -189,6 +213,26 @@ document.querySelectorAll('.code-pick-btn').forEach(btn => {
 
         updatePickerState(ci, start, end);
         render(ci);
+        markDirty();
+    });
+});
+
+// Comment-level code toggle buttons (non-CLAIM)
+document.querySelectorAll('.code-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const code = this.dataset.code;
+        const ci = parseInt(this.dataset.ci);
+        if (!commentCodes[ci]) commentCodes[ci] = [];
+
+        const idx = commentCodes[ci].indexOf(code);
+        if (idx === -1) {
+            commentCodes[ci].push(code);
+            this.classList.add('code-toggle-active');
+        } else {
+            commentCodes[ci].splice(idx, 1);
+            this.classList.remove('code-toggle-active');
+        }
+        updateSummary(ci);
         markDirty();
     });
 });
@@ -263,16 +307,28 @@ function render(ci) {
 
 function updateSummary(ci) {
     const el = document.getElementById('summary-' + ci);
-    const list = spans[ci] || [];
-    if (list.length === 0) { el.innerHTML = ''; return; }
+    const spanList = spans[ci] || [];
+    const cCodes = commentCodes[ci] || [];
 
     const allCodes = new Set();
-    list.forEach(s => s.codes.forEach(c => allCodes.add(c)));
+    spanList.forEach(s => s.codes.forEach(c => allCodes.add(c)));
+    cCodes.forEach(c => allCodes.add(c));
+
+    if (allCodes.size === 0) { el.innerHTML = ''; return; }
+
     let html = '';
     allCodes.forEach(c => {
         html += `<span class="code-tag-sm" style="background:${CODES[c].color}; border-color:${CODES[c].border};">${c}</span> `;
     });
     el.innerHTML = html;
+}
+
+function updateAllSummaries() {
+    const allCis = new Set([
+        ...Object.keys(spans).map(Number),
+        ...Object.keys(commentCodes).map(Number),
+    ]);
+    allCis.forEach(ci => updateSummary(ci));
 }
 
 function removeCode(ci, start, code) {
@@ -308,12 +364,21 @@ function saveAll() {
     clearTimeout(saveTimer);
     const flat = [];
     const codes = {};
-    for (const [ci, list] of Object.entries(spans)) {
+
+    // Collect all comment indices that have any annotation
+    const allCis = new Set([
+        ...Object.keys(spans).map(Number),
+        ...Object.keys(commentCodes).map(Number),
+    ]);
+
+    for (const ci of allCis) {
         const codeSet = new Set();
-        for (const span of list) {
+
+        // Add span-level codes (CLAIM)
+        for (const span of (spans[ci] || [])) {
             for (const code of span.codes) {
                 flat.push({
-                    comment_index: parseInt(ci),
+                    comment_index: ci,
                     span_start: span.start,
                     span_end: span.end,
                     span_text: span.text,
@@ -323,7 +388,15 @@ function saveAll() {
                 codeSet.add(code);
             }
         }
-        codes[ci] = Array.from(codeSet);
+
+        // Add comment-level codes (non-CLAIM)
+        for (const code of (commentCodes[ci] || [])) {
+            codeSet.add(code);
+        }
+
+        if (codeSet.size > 0) {
+            codes[ci] = Array.from(codeSet);
+        }
     }
 
     statusEl.textContent = 'Saving...';
