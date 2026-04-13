@@ -13,12 +13,16 @@ Requires:
 import json
 import logging
 import os
+import threading
 import gspread
 from google.oauth2.service_account import Credentials
 
 from models import get_db
 
 logger = logging.getLogger(__name__)
+
+# Serialize all push operations so concurrent saves don't interleave
+_push_lock = threading.Lock()
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -76,90 +80,108 @@ def is_configured():
     return bool(os.environ.get("GOOGLE_SHEETS_CREDENTIALS_JSON") and os.environ.get("GOOGLE_SHEET_ID"))
 
 
+def _safe_write_tab(ws, data):
+    """Write data to a sheet tab safely: write first, then trim leftover rows.
+
+    This avoids the clear-then-write pattern that can leave sheets empty on failure.
+    """
+    # Write all new data starting from A1
+    if data:
+        ws.update("A1", data)
+
+    # Now clear any leftover rows below the new data
+    total_rows_in_sheet = ws.row_count
+    new_row_count = len(data)
+    if total_rows_in_sheet > new_row_count and new_row_count > 0:
+        # Build a range for the leftover rows and clear them
+        last_col = chr(64 + len(data[0]))  # e.g. 'E' for 5 columns
+        leftover_range = f"A{new_row_count + 1}:{last_col}{total_rows_in_sheet}"
+        ws.batch_clear([leftover_range])
+
+
 def push_annotations():
     """Push all comment-level codes to the Annotations tab in Google Sheets.
 
     Replaces the entire sheet content with current DB state.
+    Uses a lock to prevent concurrent pushes from interleaving, and writes
+    data before clearing leftovers to prevent data loss on failure.
     """
-    spreadsheet = _get_spreadsheet()
-    if not spreadsheet:
-        return False, "Google Sheets not configured"
+    with _push_lock:
+        spreadsheet = _get_spreadsheet()
+        if not spreadsheet:
+            return False, "Google Sheets not configured"
 
-    conn = get_db()
-    try:
-        # ── Comment-level codes ──
-        headers = ["post_id", "comment_index", "annotator", "code", "created_at"]
-        ws = _get_or_create_tab(spreadsheet, ANNOTATIONS_TAB, headers)
+        conn = get_db()
+        try:
+            # ── Collect all data from DB first (single snapshot) ──
 
-        rows = conn.execute(
-            "SELECT post_id, comment_index, annotator_username, code, created_at "
-            "FROM comment_codes ORDER BY post_id, comment_index, annotator_username"
-        ).fetchall()
+            # Comment-level codes
+            headers = ["post_id", "comment_index", "annotator", "code", "created_at"]
+            rows = conn.execute(
+                "SELECT post_id, comment_index, annotator_username, code, created_at "
+                "FROM comment_codes ORDER BY post_id, comment_index, annotator_username"
+            ).fetchall()
+            data = [headers]
+            for r in rows:
+                data.append([r["post_id"], r["comment_index"], r["annotator_username"],
+                             r["code"], str(r["created_at"])])
 
-        data = [headers]
-        for r in rows:
-            data.append([r["post_id"], r["comment_index"], r["annotator_username"],
-                         r["code"], str(r["created_at"])])
+            # Claim spans
+            span_headers = ["post_id", "comment_index", "annotator", "span_start", "span_end",
+                            "span_text", "code", "note", "created_at"]
+            span_rows = conn.execute(
+                "SELECT post_id, comment_index, annotator_username, span_start, span_end, "
+                "span_text, code, note, created_at "
+                "FROM comment_spans ORDER BY post_id, comment_index, span_start"
+            ).fetchall()
+            span_data = [span_headers]
+            for r in span_rows:
+                span_data.append([r["post_id"], r["comment_index"], r["annotator_username"],
+                                  r["span_start"], r["span_end"], r["span_text"],
+                                  r["code"], r["note"] or "", str(r["created_at"])])
 
-        ws.clear()
-        if data:
-            ws.update("A1", data)
+            # Expert reviews
+            review_headers = ["post_id", "comment_index", "span_start", "span_end",
+                              "span_text", "expert", "verdict", "note", "created_at"]
+            review_rows = conn.execute(
+                "SELECT post_id, comment_index, span_start, span_end, span_text, "
+                "expert_username, verdict, note, created_at "
+                "FROM expert_claim_reviews ORDER BY post_id, comment_index, span_start"
+            ).fetchall()
+            review_data = [review_headers]
+            for r in review_rows:
+                review_data.append([r["post_id"], r["comment_index"], r["span_start"],
+                                    r["span_end"], r["span_text"], r["expert_username"],
+                                    r["verdict"], r["note"] or "", str(r["created_at"])])
 
-        # ── Claim spans ──
-        span_headers = ["post_id", "comment_index", "annotator", "span_start", "span_end",
-                        "span_text", "code", "note", "created_at"]
-        ws2 = _get_or_create_tab(spreadsheet, CLAIM_SPANS_TAB, span_headers)
+            conn.close()
 
-        span_rows = conn.execute(
-            "SELECT post_id, comment_index, annotator_username, span_start, span_end, "
-            "span_text, code, note, created_at "
-            "FROM comment_spans ORDER BY post_id, comment_index, span_start"
-        ).fetchall()
+            # ── Write to sheets (write-then-trim, not clear-then-write) ──
+            ws = _get_or_create_tab(spreadsheet, ANNOTATIONS_TAB, headers)
+            _safe_write_tab(ws, data)
 
-        span_data = [span_headers]
-        for r in span_rows:
-            span_data.append([r["post_id"], r["comment_index"], r["annotator_username"],
-                              r["span_start"], r["span_end"], r["span_text"],
-                              r["code"], r["note"] or "", str(r["created_at"])])
+            ws2 = _get_or_create_tab(spreadsheet, CLAIM_SPANS_TAB, span_headers)
+            _safe_write_tab(ws2, span_data)
 
-        ws2.clear()
-        if span_data:
-            ws2.update("A1", span_data)
+            ws3 = _get_or_create_tab(spreadsheet, EXPERT_REVIEWS_TAB, review_headers)
+            _safe_write_tab(ws3, review_data)
 
-        # ── Expert reviews ──
-        review_headers = ["post_id", "comment_index", "span_start", "span_end",
-                          "span_text", "expert", "verdict", "note", "created_at"]
-        ws3 = _get_or_create_tab(spreadsheet, EXPERT_REVIEWS_TAB, review_headers)
+            total = len(data) - 1 + len(span_data) - 1 + len(review_data) - 1
+            return True, f"Pushed {total} rows across 3 tabs"
 
-        review_rows = conn.execute(
-            "SELECT post_id, comment_index, span_start, span_end, span_text, "
-            "expert_username, verdict, note, created_at "
-            "FROM expert_claim_reviews ORDER BY post_id, comment_index, span_start"
-        ).fetchall()
-
-        review_data = [review_headers]
-        for r in review_rows:
-            review_data.append([r["post_id"], r["comment_index"], r["span_start"],
-                                r["span_end"], r["span_text"], r["expert_username"],
-                                r["verdict"], r["note"] or "", str(r["created_at"])])
-
-        ws3.clear()
-        if review_data:
-            ws3.update("A1", review_data)
-
-        conn.close()
-        total = len(data) - 1 + len(span_data) - 1 + len(review_data) - 1
-        return True, f"Pushed {total} rows across 3 tabs"
-
-    except Exception as e:
-        conn.close()
-        logger.error("Failed to push annotations: %s", e)
-        return False, str(e)
+        except Exception as e:
+            conn.close()
+            logger.error("Failed to push annotations: %s", e)
+            return False, str(e)
 
 
 def push_annotations_async():
-    """Non-blocking push — logs errors but doesn't block the save response."""
-    import threading
+    """Non-blocking push — logs errors but doesn't block the save response.
+
+    Uses the _push_lock internally (via push_annotations) so concurrent
+    saves are serialized. If a push is already in progress, the new one
+    will simply queue behind it and get the latest DB state when it runs.
+    """
     def _push():
         try:
             ok, msg = push_annotations()

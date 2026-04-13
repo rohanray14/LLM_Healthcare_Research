@@ -407,6 +407,23 @@ def sheets_pull():
     return redirect(url_for("sheets_status"))
 
 
+@app.route("/reload-excel", methods=["POST"])
+@login_required
+def reload_excel():
+    """Re-sync database from Excel source files.
+
+    Updates existing posts and adds new ones so the DB stays
+    in sync with any Excel edits made outside the app.
+    """
+    from load_data import reload_from_excel
+    result = reload_from_excel()
+    flash(result["msg"], "success" if result["ok"] else "danger")
+    # Also push to Google Sheets so everything stays in sync
+    if result["ok"] and sheets_configured():
+        push_annotations_async()
+    return redirect(url_for("sheets_status"))
+
+
 if __name__ == "__main__":
     init_db()
     if not posts_loaded():

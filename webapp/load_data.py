@@ -93,6 +93,105 @@ def load_llm_outputs():
     print(f"  Loaded {count} LLM output rows")
 
 
+def reload_from_excel():
+    """Re-sync DB from Excel files: update existing posts and add new ones.
+
+    This is safe to call repeatedly — it uses INSERT ... ON CONFLICT DO UPDATE
+    so post/comment data stays current with the Excel source files.
+    Returns a summary of what was synced.
+    """
+    path = os.path.join(DATA_DIR, "6K_data_with_comments (1).xlsx")
+    if not os.path.exists(path):
+        return {"ok": False, "msg": f"Source file not found: {path}"}
+
+    print(f"Re-syncing from {path} ...")
+    df = pd.read_excel(path, engine="openpyxl")
+    conn = get_db()
+
+    new_posts = 0
+    updated_posts = 0
+
+    def normalize_label(val):
+        if val and val.strip() == "Psycho-Physical Effects":
+            return "Psychophysical Effects"
+        return val
+
+    for _, row in df.iterrows():
+        post_id = str(row.iloc[0])
+        title = str(row.iloc[1]) if pd.notna(row.iloc[1]) else ""
+        body = str(row.iloc[2]) if pd.notna(row.iloc[2]) else ""
+        label1 = normalize_label(str(row.iloc[3])) if pd.notna(row.iloc[3]) else None
+        label2 = normalize_label(str(row.iloc[4])) if pd.notna(row.iloc[4]) else None
+        label3 = normalize_label(str(row.iloc[5])) if pd.notna(row.iloc[5]) else None
+        num_comments = int(row.iloc[6]) if pd.notna(row.iloc[6]) else 0
+        reddit_url = f"https://www.reddit.com/r/suboxone/comments/{post_id}/"
+
+        # Check if post already exists
+        existing = conn.execute("SELECT id FROM posts WHERE id = ?", (post_id,)).fetchone()
+
+        if existing:
+            conn.execute(
+                "UPDATE posts SET title=?, body=?, label1=?, label2=?, label3=?, num_comments=?, reddit_url=? WHERE id=?",
+                (title, body, label1, label2, label3, num_comments, reddit_url, post_id),
+            )
+            updated_posts += 1
+        else:
+            conn.execute(
+                "INSERT INTO posts (id, title, body, label1, label2, label3, num_comments, reddit_url) VALUES (?,?,?,?,?,?,?,?)",
+                (post_id, title, body, label1, label2, label3, num_comments, reddit_url),
+            )
+            new_posts += 1
+
+        # Re-sync comments: delete and re-insert to capture any edits
+        conn.execute("DELETE FROM comments WHERE post_id = ?", (post_id,))
+        cidx = 1
+        for col_i in range(7, len(row)):
+            val = row.iloc[col_i]
+            if pd.notna(val) and str(val).strip():
+                conn.execute(
+                    "INSERT INTO comments (post_id, comment_index, text) VALUES (?,?,?)",
+                    (post_id, cidx, str(val).strip()),
+                )
+                cidx += 1
+
+    conn.commit()
+
+    # Also reload LLM outputs if available
+    llm_path = os.path.join(DATA_DIR, "PostLevel_Outputs.xlsx")
+    llm_count = 0
+    if os.path.exists(llm_path):
+        llm_df = pd.read_excel(llm_path, engine="openpyxl")
+        # Clear and reload LLM outputs to reflect any reruns
+        conn.execute("DELETE FROM llm_outputs")
+        for _, row in llm_df.iterrows():
+            post_id = str(row.get("post_id", ""))
+            if not post_id:
+                continue
+            conn.execute(
+                """INSERT INTO llm_outputs
+                    (post_id, model_family, model_name, summary, unique_advice_json,
+                     divergences_json, clinically_relevant_notes_json, data_quality)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (
+                    post_id,
+                    str(row.get("model_family", "")) if pd.notna(row.get("model_family")) else None,
+                    str(row.get("model_name", "")) if pd.notna(row.get("model_name")) else None,
+                    str(row.get("summary", "")) if pd.notna(row.get("summary")) else None,
+                    str(row.get("unique_advice_json", "")) if pd.notna(row.get("unique_advice_json")) else None,
+                    str(row.get("divergences_json", "")) if pd.notna(row.get("divergences_json")) else None,
+                    str(row.get("clinically_relevant_notes_json", "")) if pd.notna(row.get("clinically_relevant_notes_json")) else None,
+                    str(row.get("data_quality", "")) if pd.notna(row.get("data_quality")) else None,
+                ),
+            )
+            llm_count += 1
+        conn.commit()
+
+    conn.close()
+    msg = f"Re-synced: {new_posts} new posts, {updated_posts} updated posts, {llm_count} LLM outputs"
+    print(msg)
+    return {"ok": True, "msg": msg, "new_posts": new_posts, "updated_posts": updated_posts, "llm_outputs": llm_count}
+
+
 if __name__ == "__main__":
     print("Initializing database...")
     init_db()
