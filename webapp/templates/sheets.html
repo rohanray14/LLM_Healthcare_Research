@@ -82,6 +82,21 @@
         </div>
     </div>
 </div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Re-sync from Excel Source Files</h6></div>
+            <div class="card-body">
+                <p class="text-muted small">Re-read the Excel source files and update the database with any changes. This updates existing posts (labels, text, comments) and adds any new posts. Annotations are preserved.</p>
+                <p class="text-muted small">Use this after editing the Excel files directly to ensure the database and Google Sheet stay in sync across all contributors.</p>
+                <form method="POST" action="{{ url_for('reload_excel') }}" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Syncing...';">
+                    <button type="submit" class="btn btn-warning">Re-sync from Excel</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endif %}
 
 {% endblock %}
