@@ -19,3 +19,7 @@ services:
         fromDatabase:
           name: moud-db
           property: connectionString
+      - key: GOOGLE_SHEETS_CREDENTIALS_JSON
+        sync: false
+      - key: GOOGLE_SHEET_ID
+        sync: false

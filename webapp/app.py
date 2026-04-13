@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import json
 
 from config import SECRET_KEY, USERS, LABELS, COMMENT_CODES
+from sheets import is_configured as sheets_configured, push_annotations_async, push_annotations, pull_input_data, get_sync_status
 from models import (
     init_db, posts_loaded, get_posts, get_post, get_llm_outputs,
     get_adjacent_posts, get_existing_verifications, save_verification, get_progress,
@@ -298,6 +299,10 @@ def save_all_annotations(post_id):
     spans = data.get("spans", [])
     save_comment_spans(post_id, session["username"], spans)
 
+    # Auto-sync to Google Sheets (non-blocking)
+    if sheets_configured():
+        push_annotations_async()
+
     return jsonify({"ok": True, "codes_saved": sum(len(v) for v in codes.values()), "spans_saved": len(spans)})
 
 
@@ -361,7 +366,45 @@ def save_review(post_id):
         return jsonify({"error": "No data"}), 400
 
     save_expert_reviews(post_id, session["username"], data["reviews"])
+
+    # Auto-sync to Google Sheets (non-blocking)
+    if sheets_configured():
+        push_annotations_async()
+
     return jsonify({"ok": True, "count": len(data["reviews"])})
+
+
+# ── Google Sheets sync routes ───────────────────────────────────────
+
+@app.route("/sheets")
+@login_required
+def sheets_status():
+    if not sheets_configured():
+        return render_template("sheets.html", configured=False, status=None)
+    status = get_sync_status()
+    return render_template("sheets.html", configured=True, status=status)
+
+
+@app.route("/sheets/push", methods=["POST"])
+@login_required
+def sheets_push():
+    if not sheets_configured():
+        flash("Google Sheets not configured", "danger")
+        return redirect(url_for("sheets_status"))
+    ok, msg = push_annotations()
+    flash(msg, "success" if ok else "danger")
+    return redirect(url_for("sheets_status"))
+
+
+@app.route("/sheets/pull", methods=["POST"])
+@login_required
+def sheets_pull():
+    if not sheets_configured():
+        flash("Google Sheets not configured", "danger")
+        return redirect(url_for("sheets_status"))
+    ok, msg = pull_input_data()
+    flash(msg, "success" if ok else "danger")
+    return redirect(url_for("sheets_status"))
 
 
 if __name__ == "__main__":

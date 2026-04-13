@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Google Sheets Sync{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Google Sheets Sync</h4>
+    <a href="{{ url_for('annotator_dashboard') }}" class="btn btn-sm btn-outline-dark">Back to Dashboard</a>
+</div>
+
+{% if not configured %}
+<div class="card">
+    <div class="card-body">
+        <h5>Not Configured</h5>
+        <p class="text-muted mb-3">To enable Google Sheets integration, set these environment variables on Render:</p>
+        <table class="table table-sm">
+            <tr>
+                <td><code>GOOGLE_SHEETS_CREDENTIALS_JSON</code></td>
+                <td>The full JSON content of your Google service account key file</td>
+            </tr>
+            <tr>
+                <td><code>GOOGLE_SHEET_ID</code></td>
+                <td>The spreadsheet ID from the Google Sheet URL<br>
+                    <small class="text-muted">e.g. from <code>https://docs.google.com/spreadsheets/d/<strong>SHEET_ID_HERE</strong>/edit</code></small>
+                </td>
+            </tr>
+        </table>
+        <hr>
+        <h6>Setup Steps</h6>
+        <ol>
+            <li>Go to <a href="https://console.cloud.google.com/apis/library/sheets.googleapis.com" target="_blank">Google Cloud Console</a> and enable the Google Sheets API</li>
+            <li>Go to <strong>IAM & Admin > Service Accounts</strong> and create a service account</li>
+            <li>Create a JSON key for the service account and download it</li>
+            <li>Share your Google Sheet with the service account email (the <code>client_email</code> in the JSON)</li>
+            <li>On Render, add <code>GOOGLE_SHEETS_CREDENTIALS_JSON</code> with the full JSON content and <code>GOOGLE_SHEET_ID</code> with your sheet ID</li>
+            <li>Redeploy the app</li>
+        </ol>
+    </div>
+</div>
+
+{% else %}
+
+<div class="card mb-3">
+    <div class="card-header"><h6 class="mb-0">Connected Sheet</h6></div>
+    <div class="card-body">
+        {% if status %}
+        <p><strong>Title:</strong> {{ status.title }}</p>
+        <p><strong>URL:</strong> <a href="{{ status.url }}" target="_blank">{{ status.url }}</a></p>
+        <p><strong>Tabs:</strong>
+            {% for tab in status.tabs %}
+            <span class="badge bg-secondary">{{ tab }}</span>
+            {% endfor %}
+        </p>
+        {% else %}
+        <p class="text-danger">Could not connect to sheet. Check your credentials and sheet ID.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Push Annotations to Sheet</h6></div>
+            <div class="card-body">
+                <p class="text-muted small">Export all annotations, claim spans, and expert reviews to the Google Sheet. This replaces existing data in the sync tabs.</p>
+                <p class="text-muted small">This also happens <strong>automatically</strong> after every annotation save.</p>
+                <form method="POST" action="{{ url_for('sheets_push') }}">
+                    <button type="submit" class="btn btn-primary">Push All Annotations</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header"><h6 class="mb-0">Pull Input Data from Sheet</h6></div>
+            <div class="card-body">
+                <p class="text-muted small">Import new posts and comments from the first tab of the sheet. Only adds posts that don't already exist in the database.</p>
+                <p class="text-muted small">Expected columns: <code>post_id, title, body, label1, label2, label3, num_comments, reddit_url, comment_1, comment_2, ...</code></p>
+                <form method="POST" action="{{ url_for('sheets_pull') }}">
+                    <button type="submit" class="btn btn-outline-primary">Pull New Data</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
