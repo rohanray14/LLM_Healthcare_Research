@@ -33,6 +33,7 @@ SCOPES = [
 ANNOTATIONS_TAB = "Annotations"
 CLAIM_SPANS_TAB = "Claim Spans"
 EXPERT_REVIEWS_TAB = "Expert Reviews"
+ANNOTATOR_PROGRESS_TAB = "Annotator Progress"
 
 
 def _get_client():
@@ -154,8 +155,6 @@ def push_annotations():
                                     r["span_end"], r["span_text"], r["expert_username"],
                                     r["verdict"], r["note"] or "", str(r["created_at"])])
 
-            conn.close()
-
             # ── Write to sheets (write-then-trim, not clear-then-write) ──
             ws = _get_or_create_tab(spreadsheet, ANNOTATIONS_TAB, headers)
             _safe_write_tab(ws, data)
@@ -166,8 +165,37 @@ def push_annotations():
             ws3 = _get_or_create_tab(spreadsheet, EXPERT_REVIEWS_TAB, review_headers)
             _safe_write_tab(ws3, review_data)
 
+            # Annotator progress summary (queries DB, so must be before conn.close)
+            progress_headers = ["annotator", "posts_annotated", "total_codes", "total_spans", "last_activity"]
+            progress_rows = conn.execute(
+                "SELECT annotator_username, "
+                "COUNT(DISTINCT post_id) AS posts_annotated, "
+                "COUNT(*) AS total_codes, "
+                "MAX(created_at) AS last_activity "
+                "FROM comment_codes GROUP BY annotator_username "
+                "ORDER BY annotator_username"
+            ).fetchall()
+            span_counts = dict(conn.execute(
+                "SELECT annotator_username, COUNT(*) "
+                "FROM comment_spans GROUP BY annotator_username"
+            ).fetchall())
+            progress_data = [progress_headers]
+            for r in progress_rows:
+                progress_data.append([
+                    r["annotator_username"],
+                    r["posts_annotated"],
+                    r["total_codes"],
+                    span_counts.get(r["annotator_username"], 0),
+                    str(r["last_activity"]),
+                ])
+
+            conn.close()
+
+            ws4 = _get_or_create_tab(spreadsheet, ANNOTATOR_PROGRESS_TAB, progress_headers)
+            _safe_write_tab(ws4, progress_data)
+
             total = len(data) - 1 + len(span_data) - 1 + len(review_data) - 1
-            return True, f"Pushed {total} rows across 3 tabs"
+            return True, f"Pushed {total} rows across 4 tabs"
 
         except Exception as e:
             conn.close()

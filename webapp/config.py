@@ -10,9 +10,16 @@ USERS = {
     "dr_smith": {"password": "password123", "role": "expert"},
     "dr_jones": {"password": "password456", "role": "expert"},
     "admin": {"password": "admin123", "role": "expert"},
-    "annotator1": {"password": "annotate123", "role": "annotator"},
-    "annotator2": {"password": "annotate456", "role": "annotator"},
-    "annotator3": {"password": "annotate789", "role": "annotator"},
+    "anusha": {"password": "anusha2026", "role": "annotator"},
+    "sarah": {"password": "sarah2026", "role": "annotator"},
+    "nikhil": {"password": "nikhil2026", "role": "annotator"},
+    "reet": {"password": "reet2026", "role": "annotator"},
+    "annotator5": {"password": "annotate500", "role": "annotator"},
+    "annotator6": {"password": "annotate600", "role": "annotator"},
+    "annotator7": {"password": "annotate700", "role": "annotator"},
+    "annotator8": {"password": "annotate800", "role": "annotator"},
+    "annotator9": {"password": "annotate900", "role": "annotator"},
+    "annotator10": {"password": "annotate1000", "role": "annotator"},
 }
 
 LABELS = [
