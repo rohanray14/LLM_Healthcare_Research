@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 # Serialize all push operations so concurrent saves don't interleave
 _push_lock = threading.Lock()
 
+# Runtime override for the sheet ID (set via the UI, falls back to env var)
+_sheet_id_override = None
+
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
@@ -50,9 +53,30 @@ def _get_client():
         return None
 
 
+def get_active_sheet_id():
+    """Return the currently active sheet ID (override or env var)."""
+    return _sheet_id_override or os.environ.get("GOOGLE_SHEET_ID")
+
+
+def set_sheet_id(sheet_id):
+    """Set a runtime override for the Google Sheet ID.
+
+    Accepts either a raw sheet ID or a full Google Sheets URL.
+    """
+    global _sheet_id_override
+    if not sheet_id:
+        _sheet_id_override = None
+        return
+    sheet_id = sheet_id.strip()
+    # Extract ID from full URL: docs.google.com/spreadsheets/d/SHEET_ID/...
+    if "/spreadsheets/d/" in sheet_id:
+        sheet_id = sheet_id.split("/spreadsheets/d/")[1].split("/")[0]
+    _sheet_id_override = sheet_id
+
+
 def _get_spreadsheet():
     """Return the gspread Spreadsheet object, or None."""
-    sheet_id = os.environ.get("GOOGLE_SHEET_ID")
+    sheet_id = get_active_sheet_id()
     if not sheet_id:
         return None
     client = _get_client()
@@ -78,7 +102,7 @@ def _get_or_create_tab(spreadsheet, tab_name, headers):
 
 def is_configured():
     """Check if Google Sheets integration is configured."""
-    return bool(os.environ.get("GOOGLE_SHEETS_CREDENTIALS_JSON") and os.environ.get("GOOGLE_SHEET_ID"))
+    return bool(os.environ.get("GOOGLE_SHEETS_CREDENTIALS_JSON") and get_active_sheet_id())
 
 
 def _safe_write_tab(ws, data):

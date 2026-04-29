@@ -20,6 +20,8 @@ USERS = {
     "annotator8": {"password": "annotate800", "role": "annotator"},
     "annotator9": {"password": "annotate900", "role": "annotator"},
     "annotator10": {"password": "annotate1000", "role": "annotator"},
+    "mehar": {"password": "mehar2026", "role": "annotator"},
+    "ruiqi": {"password": "ruiqi2026", "role": "annotator"},
 }
 
 LABELS = [

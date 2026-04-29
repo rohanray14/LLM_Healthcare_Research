@@ -1,9 +1,10 @@
+import os
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import json
 
 from config import SECRET_KEY, USERS, LABELS, COMMENT_CODES
-from sheets import is_configured as sheets_configured, push_annotations_async, push_annotations, pull_input_data, get_sync_status
+from sheets import is_configured as sheets_configured, push_annotations_async, push_annotations, pull_input_data, get_sync_status, get_active_sheet_id, set_sheet_id
 from models import (
     init_db, posts_loaded, get_posts, get_post, get_llm_outputs,
     get_adjacent_posts, get_existing_verifications, save_verification, get_progress,
@@ -379,10 +380,26 @@ def save_review(post_id):
 @app.route("/sheets")
 @login_required
 def sheets_status():
+    has_creds = bool(os.environ.get("GOOGLE_SHEETS_CREDENTIALS_JSON"))
+    current_sheet_id = get_active_sheet_id()
     if not sheets_configured():
-        return render_template("sheets.html", configured=False, status=None)
+        return render_template("sheets.html", configured=False, status=None,
+                               has_creds=has_creds, current_sheet_id=current_sheet_id or "")
     status = get_sync_status()
-    return render_template("sheets.html", configured=True, status=status)
+    return render_template("sheets.html", configured=True, status=status,
+                           has_creds=has_creds, current_sheet_id=current_sheet_id or "")
+
+
+@app.route("/sheets/switch", methods=["POST"])
+@login_required
+def sheets_switch():
+    new_id = request.form.get("sheet_id", "").strip()
+    if not new_id:
+        flash("Please enter a Google Sheet ID", "danger")
+        return redirect(url_for("sheets_status"))
+    set_sheet_id(new_id)
+    flash(f"Switched to sheet: {new_id}", "success")
+    return redirect(url_for("sheets_status"))
 
 
 @app.route("/sheets/push", methods=["POST"])

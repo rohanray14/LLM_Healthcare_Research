@@ -7,10 +7,31 @@
     <a href="{{ url_for('annotator_dashboard') }}" class="btn btn-sm btn-outline-dark">Back to Dashboard</a>
 </div>
 
+{% if has_creds %}
+<div class="card mb-3">
+    <div class="card-header"><h6 class="mb-0">Switch Connected Spreadsheet</h6></div>
+    <div class="card-body">
+        <p class="text-muted small">Paste a Google Sheet ID or full URL to connect the annotation tool to a different spreadsheet. The service account must have edit access to the target sheet.</p>
+        <form method="POST" action="{{ url_for('sheets_switch') }}" class="row g-2 align-items-end">
+            <div class="col-md-8">
+                <label class="form-label" for="sheet_id">Sheet ID or URL</label>
+                <input type="text" class="form-control" id="sheet_id" name="sheet_id"
+                       value="{{ current_sheet_id }}"
+                       placeholder="e.g. 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">Connect Sheet</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 {% if not configured %}
 <div class="card">
     <div class="card-body">
         <h5>Not Configured</h5>
+        {% if not has_creds %}
         <p class="text-muted mb-3">To enable Google Sheets integration, set these environment variables on Render:</p>
         <table class="table table-sm">
             <tr>
@@ -34,6 +55,9 @@
             <li>On Render, add <code>GOOGLE_SHEETS_CREDENTIALS_JSON</code> with the full JSON content and <code>GOOGLE_SHEET_ID</code> with your sheet ID</li>
             <li>Redeploy the app</li>
         </ol>
+        {% else %}
+        <p class="text-muted mb-3">Credentials are configured but no Sheet ID is set. Use the form above to connect a spreadsheet.</p>
+        {% endif %}
     </div>
 </div>
 
