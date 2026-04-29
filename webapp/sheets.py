@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 # Serialize all push operations so concurrent saves don't interleave
 _push_lock = threading.Lock()
 
-# Runtime override for the sheet ID (set via the UI, falls back to env var)
-_sheet_id_override = None
+# Per-user runtime overrides for the sheet ID (falls back to env var)
+_sheet_id_overrides = {}  # username -> sheet_id
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -53,30 +53,33 @@ def _get_client():
         return None
 
 
-def get_active_sheet_id():
-    """Return the currently active sheet ID (override or env var)."""
-    return _sheet_id_override or os.environ.get("GOOGLE_SHEET_ID")
+def get_active_sheet_id(username=None):
+    """Return the active sheet ID for a user (per-user override or env var)."""
+    if username and username in _sheet_id_overrides:
+        return _sheet_id_overrides[username]
+    return os.environ.get("GOOGLE_SHEET_ID")
 
 
-def set_sheet_id(sheet_id):
-    """Set a runtime override for the Google Sheet ID.
+def set_sheet_id(sheet_id, username=None):
+    """Set a per-user runtime override for the Google Sheet ID.
 
     Accepts either a raw sheet ID or a full Google Sheets URL.
     """
-    global _sheet_id_override
     if not sheet_id:
-        _sheet_id_override = None
+        if username:
+            _sheet_id_overrides.pop(username, None)
         return
     sheet_id = sheet_id.strip()
     # Extract ID from full URL: docs.google.com/spreadsheets/d/SHEET_ID/...
     if "/spreadsheets/d/" in sheet_id:
         sheet_id = sheet_id.split("/spreadsheets/d/")[1].split("/")[0]
-    _sheet_id_override = sheet_id
+    if username:
+        _sheet_id_overrides[username] = sheet_id
 
 
-def _get_spreadsheet():
+def _get_spreadsheet(username=None):
     """Return the gspread Spreadsheet object, or None."""
-    sheet_id = get_active_sheet_id()
+    sheet_id = get_active_sheet_id(username)
     if not sheet_id:
         return None
     client = _get_client()
@@ -100,9 +103,9 @@ def _get_or_create_tab(spreadsheet, tab_name, headers):
     return ws
 
 
-def is_configured():
+def is_configured(username=None):
     """Check if Google Sheets integration is configured."""
-    return bool(os.environ.get("GOOGLE_SHEETS_CREDENTIALS_JSON") and get_active_sheet_id())
+    return bool(os.environ.get("GOOGLE_SHEETS_CREDENTIALS_JSON") and get_active_sheet_id(username))
 
 
 def _safe_write_tab(ws, data):
@@ -124,7 +127,7 @@ def _safe_write_tab(ws, data):
         ws.batch_clear([leftover_range])
 
 
-def push_annotations():
+def push_annotations(username=None):
     """Push all comment-level codes to the Annotations tab in Google Sheets.
 
     Replaces the entire sheet content with current DB state.
@@ -132,7 +135,7 @@ def push_annotations():
     data before clearing leftovers to prevent data loss on failure.
     """
     with _push_lock:
-        spreadsheet = _get_spreadsheet()
+        spreadsheet = _get_spreadsheet(username)
         if not spreadsheet:
             return False, "Google Sheets not configured"
 
@@ -227,7 +230,7 @@ def push_annotations():
             return False, str(e)
 
 
-def push_annotations_async():
+def push_annotations_async(username=None):
     """Non-blocking push — logs errors but doesn't block the save response.
 
     Uses the _push_lock internally (via push_annotations) so concurrent
@@ -236,7 +239,7 @@ def push_annotations_async():
     """
     def _push():
         try:
-            ok, msg = push_annotations()
+            ok, msg = push_annotations(username)
             if ok:
                 logger.info("Sheets sync: %s", msg)
             else:
@@ -246,13 +249,13 @@ def push_annotations_async():
     threading.Thread(target=_push, daemon=True).start()
 
 
-def pull_input_data():
+def pull_input_data(username=None):
     """Pull post/comment data from the first sheet tab into the database.
 
     Expects columns: post_id, title, body, label1, label2, label3, num_comments, reddit_url, comment_1, comment_2, ...
     Only inserts posts that don't already exist in the DB.
     """
-    spreadsheet = _get_spreadsheet()
+    spreadsheet = _get_spreadsheet(username)
     if not spreadsheet:
         return False, "Google Sheets not configured"
 
@@ -314,9 +317,9 @@ def pull_input_data():
         return False, str(e)
 
 
-def get_sync_status():
+def get_sync_status(username=None):
     """Return info about the connected sheet for display."""
-    spreadsheet = _get_spreadsheet()
+    spreadsheet = _get_spreadsheet(username)
     if not spreadsheet:
         return None
     try:

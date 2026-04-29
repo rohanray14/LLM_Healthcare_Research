@@ -301,8 +301,9 @@ def save_all_annotations(post_id):
     save_comment_spans(post_id, session["username"], spans)
 
     # Auto-sync to Google Sheets (non-blocking)
-    if sheets_configured():
-        push_annotations_async()
+    username = session["username"]
+    if sheets_configured(username):
+        push_annotations_async(username)
 
     return jsonify({"ok": True, "codes_saved": sum(len(v) for v in codes.values()), "spans_saved": len(spans)})
 
@@ -369,8 +370,9 @@ def save_review(post_id):
     save_expert_reviews(post_id, session["username"], data["reviews"])
 
     # Auto-sync to Google Sheets (non-blocking)
-    if sheets_configured():
-        push_annotations_async()
+    username = session["username"]
+    if sheets_configured(username):
+        push_annotations_async(username)
 
     return jsonify({"ok": True, "count": len(data["reviews"])})
 
@@ -381,11 +383,12 @@ def save_review(post_id):
 @login_required
 def sheets_status():
     has_creds = bool(os.environ.get("GOOGLE_SHEETS_CREDENTIALS_JSON"))
-    current_sheet_id = get_active_sheet_id()
-    if not sheets_configured():
+    username = session["username"]
+    current_sheet_id = get_active_sheet_id(username)
+    if not sheets_configured(username):
         return render_template("sheets.html", configured=False, status=None,
                                has_creds=has_creds, current_sheet_id=current_sheet_id or "")
-    status = get_sync_status()
+    status = get_sync_status(username)
     return render_template("sheets.html", configured=True, status=status,
                            has_creds=has_creds, current_sheet_id=current_sheet_id or "")
 
@@ -397,7 +400,7 @@ def sheets_switch():
     if not new_id:
         flash("Please enter a Google Sheet ID", "danger")
         return redirect(url_for("sheets_status"))
-    set_sheet_id(new_id)
+    set_sheet_id(new_id, session["username"])
     flash(f"Switched to sheet: {new_id}", "success")
     return redirect(url_for("sheets_status"))
 
@@ -405,10 +408,11 @@ def sheets_switch():
 @app.route("/sheets/push", methods=["POST"])
 @login_required
 def sheets_push():
-    if not sheets_configured():
+    username = session["username"]
+    if not sheets_configured(username):
         flash("Google Sheets not configured", "danger")
         return redirect(url_for("sheets_status"))
-    ok, msg = push_annotations()
+    ok, msg = push_annotations(username)
     flash(msg, "success" if ok else "danger")
     return redirect(url_for("sheets_status"))
 
@@ -416,10 +420,11 @@ def sheets_push():
 @app.route("/sheets/pull", methods=["POST"])
 @login_required
 def sheets_pull():
-    if not sheets_configured():
+    username = session["username"]
+    if not sheets_configured(username):
         flash("Google Sheets not configured", "danger")
         return redirect(url_for("sheets_status"))
-    ok, msg = pull_input_data()
+    ok, msg = pull_input_data(username)
     flash(msg, "success" if ok else "danger")
     return redirect(url_for("sheets_status"))
 
@@ -436,8 +441,8 @@ def reload_excel():
     result = reload_from_excel()
     flash(result["msg"], "success" if result["ok"] else "danger")
     # Also push to Google Sheets so everything stays in sync
-    if result["ok"] and sheets_configured():
-        push_annotations_async()
+    if result["ok"] and sheets_configured(session["username"]):
+        push_annotations_async(session["username"])
     return redirect(url_for("sheets_status"))
 
 
