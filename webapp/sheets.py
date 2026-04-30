@@ -17,15 +17,12 @@ import threading
 import gspread
 from google.oauth2.service_account import Credentials
 
-from models import get_db
+from models import get_db, get_user_setting, set_user_setting
 
 logger = logging.getLogger(__name__)
 
 # Serialize all push operations so concurrent saves don't interleave
 _push_lock = threading.Lock()
-
-# Per-user runtime overrides for the sheet ID (falls back to env var)
-_sheet_id_overrides = {}  # username -> sheet_id
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -54,27 +51,30 @@ def _get_client():
 
 
 def get_active_sheet_id(username=None):
-    """Return the active sheet ID for a user (per-user override or env var)."""
-    if username and username in _sheet_id_overrides:
-        return _sheet_id_overrides[username]
+    """Return the active sheet ID for a user (DB-persisted override, then env var)."""
+    if username:
+        override = get_user_setting(username, "sheet_id")
+        if override:
+            return override
     return os.environ.get("GOOGLE_SHEET_ID")
 
 
 def set_sheet_id(sheet_id, username=None):
-    """Set a per-user runtime override for the Google Sheet ID.
+    """Persist a per-user override for the Google Sheet ID.
 
     Accepts either a raw sheet ID or a full Google Sheets URL.
+    Survives app restarts and works across gunicorn workers.
     """
     if not sheet_id:
         if username:
-            _sheet_id_overrides.pop(username, None)
+            set_user_setting(username, "sheet_id", "")
         return
     sheet_id = sheet_id.strip()
     # Extract ID from full URL: docs.google.com/spreadsheets/d/SHEET_ID/...
     if "/spreadsheets/d/" in sheet_id:
         sheet_id = sheet_id.split("/spreadsheets/d/")[1].split("/")[0]
     if username:
-        _sheet_id_overrides[username] = sheet_id
+        set_user_setting(username, "sheet_id", sheet_id)
 
 
 def _get_spreadsheet(username=None):
@@ -249,8 +249,8 @@ def push_annotations_async(username=None):
     threading.Thread(target=_push, daemon=True).start()
 
 
-def pull_input_data(username=None):
-    """Pull post/comment data from the first sheet tab into the database.
+def pull_input_data(username=None, tab_name=None):
+    """Pull post/comment data from a sheet tab into the database.
 
     Expects columns: post_id, title, body, label1, label2, label3, num_comments, reddit_url, comment_1, comment_2, ...
     Only inserts posts that don't already exist in the DB.
@@ -260,18 +260,47 @@ def pull_input_data(username=None):
         return False, "Google Sheets not configured"
 
     try:
-        # Read from the first tab (assumed to be input data)
-        ws = spreadsheet.sheet1
+        # Read from the specified tab, or fall back to the first tab
+        if tab_name:
+            try:
+                ws = spreadsheet.worksheet(tab_name)
+            except gspread.exceptions.WorksheetNotFound:
+                return False, f"Tab '{tab_name}' not found in spreadsheet"
+        else:
+            ws = spreadsheet.sheet1
         all_data = ws.get_all_records()
         if not all_data:
             return False, "No data found in sheet"
+
+        # Validate required columns exist
+        required_cols = {"post_id", "title", "body"}
+        actual_cols = {str(k).strip().lower() for k in all_data[0].keys()}
+        # Build a case-insensitive mapping from actual column names
+        col_map = {str(k).strip().lower(): k for k in all_data[0].keys()}
+        missing = required_cols - actual_cols
+        if missing:
+            return False, (
+                f"Missing required columns: {', '.join(sorted(missing))}. "
+                f"Found columns: {', '.join(sorted(col_map.values()))}. "
+                f"Expected at minimum: post_id, title, body"
+            )
 
         conn = get_db()
         inserted_posts = 0
         inserted_comments = 0
 
+        def _get(row, name, default=""):
+            """Case-insensitive column lookup."""
+            # Try exact match first, then case-insensitive
+            if name in row:
+                return row[name]
+            for k in row:
+                if str(k).strip().lower() == name.lower():
+                    return row[k]
+            return default
+
         for row in all_data:
-            post_id = str(row.get("post_id", "")).strip()
+            post_id = str(_get(row, "post_id", "")).strip()
             if not post_id:
                 continue
 
@@ -280,13 +309,14 @@ def pull_input_data(username=None):
             if existing:
                 continue
 
-            title = str(row.get("title", ""))
-            body = str(row.get("body", ""))
-            label1 = str(row.get("label1", ""))
-            label2 = str(row.get("label2", ""))
-            label3 = str(row.get("label3", ""))
-            num_comments = int(row.get("num_comments", 0)) if row.get("num_comments") else 0
-            reddit_url = str(row.get("reddit_url", ""))
+            title = str(_get(row, "title"))
+            body = str(_get(row, "body"))
+            label1 = str(_get(row, "label1"))
+            label2 = str(_get(row, "label2"))
+            label3 = str(_get(row, "label3"))
+            nc = _get(row, "num_comments", 0)
+            num_comments = int(nc) if nc else 0
+            reddit_url = str(_get(row, "reddit_url"))
 
             conn.execute(
                 "INSERT INTO posts (id, title, body, label1, label2, label3, num_comments, reddit_url) "
@@ -298,7 +328,7 @@ def pull_input_data(username=None):
             # Look for comment columns (comment_1, comment_2, ... or numbered columns after index 7)
             ci = 1
             for key in row:
-                if key.lower().startswith("comment_") or key.lower().startswith("comment "):
+                if str(key).lower().startswith("comment_") or str(key).lower().startswith("comment "):
                     text = str(row[key]).strip()
                     if text and text.lower() != "nan":
                         conn.execute(

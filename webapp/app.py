@@ -13,6 +13,7 @@ from models import (
     get_comment_spans, save_comment_spans, delete_comment_span, get_annotation_progress,
     get_claim_spans_for_review, get_expert_reviews, save_expert_reviews,
     get_posts_with_claims, get_expert_review_progress,
+    register_user, authenticate_user, seed_users,
 )
 
 app = Flask(__name__)
@@ -20,6 +21,7 @@ app.secret_key = SECRET_KEY
 
 # Auto-initialize on import (for gunicorn)
 init_db()
+seed_users(USERS)  # Migrate legacy hardcoded accounts to DB (idempotent)
 if not posts_loaded():
     from load_data import load_6k_data, load_llm_outputs
     load_6k_data()
@@ -40,15 +42,43 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        user = USERS.get(username)
-        if user and user["password"] == password:
-            session["username"] = username
+        user = authenticate_user(username, password)
+        if user:
+            session["username"] = user["username"]
             session["role"] = user["role"]
             if user["role"] == "annotator":
                 return redirect(url_for("annotator_dashboard"))
             return redirect(url_for("expert_review_dashboard"))
-        flash("Invalid credentials", "danger")
+        flash("Invalid username or password", "danger")
     return render_template("login.html")
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        role = request.form.get("role", "annotator")
+
+        if not username or not password:
+            flash("Username and password are required", "danger")
+        elif len(username) < 3:
+            flash("Username must be at least 3 characters", "danger")
+        elif len(password) < 6:
+            flash("Password must be at least 6 characters", "danger")
+        elif password != confirm:
+            flash("Passwords do not match", "danger")
+        elif role not in ("annotator", "expert"):
+            flash("Invalid role", "danger")
+        else:
+            ok, msg = register_user(username, password, role)
+            if ok:
+                flash("Account created! You can now log in.", "success")
+                return redirect(url_for("login"))
+            else:
+                flash(msg, "danger")
+    return render_template("register.html")
 
 
 @app.route("/logout")
@@ -424,7 +454,8 @@ def sheets_pull():
     if not sheets_configured(username):
         flash("Google Sheets not configured", "danger")
         return redirect(url_for("sheets_status"))
-    ok, msg = pull_input_data(username)
+    tab_name = request.form.get("tab_name", "").strip() or None
+    ok, msg = pull_input_data(username, tab_name=tab_name)
     flash(msg, "success" if ok else "danger")
     return redirect(url_for("sheets_status"))
 
@@ -448,6 +479,7 @@ def reload_excel():
 
 if __name__ == "__main__":
     init_db()
+    seed_users(USERS)
     if not posts_loaded():
         print("Database empty. Loading data from Excel files...")
         from load_data import load_6k_data, load_llm_outputs

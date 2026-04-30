@@ -1,4 +1,5 @@
 import sqlite3
+from werkzeug.security import generate_password_hash, check_password_hash
 from config import DATABASE_PATH, DATABASE_URL, USE_POSTGRES
 
 if USE_POSTGRES:
@@ -148,6 +149,18 @@ def init_db():
         )""",
         "CREATE INDEX IF NOT EXISTS idx_expert_reviews_post ON expert_claim_reviews(post_id)",
         "CREATE INDEX IF NOT EXISTS idx_expert_reviews_lookup ON expert_claim_reviews(post_id, expert_username)",
+        """CREATE TABLE IF NOT EXISTS user_settings (
+            username TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT,
+            PRIMARY KEY(username, key)
+        )""",
+        """CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'annotator',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
     ]
 
     serial = "SERIAL" if USE_POSTGRES else "INTEGER PRIMARY KEY AUTOINCREMENT"
@@ -639,3 +652,64 @@ def posts_loaded():
     except Exception:
         conn.close()
         return False
+
+
+def get_user_setting(username, key):
+    conn = get_db()
+    row = conn.execute(
+        "SELECT value FROM user_settings WHERE username = ? AND key = ?",
+        (username, key),
+    ).fetchone()
+    conn.close()
+    return row["value"] if row else None
+
+
+def set_user_setting(username, key, value):
+    conn = get_db()
+    conn.execute(
+        """INSERT INTO user_settings (username, key, value) VALUES (?, ?, ?)
+           ON CONFLICT(username, key) DO UPDATE SET value = excluded.value""",
+        (username, key, value),
+    )
+    conn.commit()
+    conn.close()
+
+
+def register_user(username, password, role="annotator"):
+    """Create a new user account. Returns (success, message)."""
+    conn = get_db()
+    existing = conn.execute("SELECT username FROM users WHERE username = ?", (username,)).fetchone()
+    if existing:
+        conn.close()
+        return False, "Username already taken"
+    conn.execute(
+        "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+        (username, generate_password_hash(password), role),
+    )
+    conn.commit()
+    conn.close()
+    return True, "Account created"
+
+
+def authenticate_user(username, password):
+    """Check credentials. Returns the user dict or None."""
+    conn = get_db()
+    row = conn.execute("SELECT username, password_hash, role FROM users WHERE username = ?", (username,)).fetchone()
+    conn.close()
+    if row and check_password_hash(row["password_hash"], password):
+        return {"username": row["username"], "role": row["role"]}
+    return None
+
+
+def seed_users(users_dict):
+    """Seed the users table from the legacy USERS config dict (idempotent)."""
+    conn = get_db()
+    for username, info in users_dict.items():
+        existing = conn.execute("SELECT username FROM users WHERE username = ?", (username,)).fetchone()
+        if not existing:
+            conn.execute(
+                "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+                (username, generate_password_hash(info["password"]), info["role"]),
+            )
+    conn.commit()
+    conn.close()
