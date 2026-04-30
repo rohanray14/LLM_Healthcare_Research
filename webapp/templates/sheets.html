@@ -97,9 +97,19 @@
         <div class="card h-100">
             <div class="card-header"><h6 class="mb-0">Pull Input Data from Sheet</h6></div>
             <div class="card-body">
-                <p class="text-muted small">Import new posts and comments from the first tab of the sheet. Only adds posts that don't already exist in the database.</p>
+                <p class="text-muted small">Import new posts and comments from a sheet tab. Only adds posts that don't already exist in the database.</p>
                 <p class="text-muted small">Expected columns: <code>post_id, title, body, label1, label2, label3, num_comments, reddit_url, comment_1, comment_2, ...</code></p>
                 <form method="POST" action="{{ url_for('sheets_pull') }}">
+                    {% if status and status.tabs %}
+                    <div class="mb-2">
+                        <label class="form-label small" for="pull_tab">Tab to pull from</label>
+                        <select class="form-select form-select-sm" id="pull_tab" name="tab_name">
+                            {% for tab in status.tabs %}
+                            <option value="{{ tab }}">{{ tab }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
                     <button type="submit" class="btn btn-outline-primary">Pull New Data</button>
                 </form>
             </div>
