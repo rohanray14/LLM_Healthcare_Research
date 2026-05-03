@@ -317,11 +317,17 @@ def pull_input_data(username=None, tab_name=None):
             nc = _get(row, "num_comments", 0)
             num_comments = int(nc) if nc else 0
             reddit_url = str(_get(row, "reddit_url"))
+            batch = str(_get(row, "batch", "")).strip()
+            annotator = str(_get(row, "annotator", "")).strip()
+            if batch.lower() == "nan":
+                batch = ""
+            if annotator.lower() == "nan":
+                annotator = ""
 
             conn.execute(
-                "INSERT INTO posts (id, title, body, label1, label2, label3, num_comments, reddit_url) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (post_id, title, body, label1, label2, label3, num_comments, reddit_url),
+                "INSERT INTO posts (id, title, body, label1, label2, label3, num_comments, reddit_url, assigned_batch, assigned_annotator) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (post_id, title, body, label1, label2, label3, num_comments, reddit_url, batch, annotator),
             )
             inserted_posts += 1
 
