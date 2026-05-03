@@ -52,7 +52,9 @@ def init_db():
             label2 TEXT,
             label3 TEXT,
             num_comments INTEGER,
-            reddit_url TEXT
+            reddit_url TEXT,
+            assigned_batch TEXT,
+            assigned_annotator TEXT
         )""",
         """CREATE TABLE IF NOT EXISTS comments (
             id {serial} PRIMARY KEY,
@@ -176,10 +178,24 @@ def init_db():
             conn.execute(sql)
 
     conn.commit()
+
+    # Migrate: add columns to existing posts table if missing
+    _add_column_if_missing(conn, "posts", "assigned_batch", "TEXT")
+    _add_column_if_missing(conn, "posts", "assigned_annotator", "TEXT")
+
     conn.close()
 
 
-def get_posts(label_filter=None, verified_filter=None, search=None, page=1, per_page=25, username=None):
+def _add_column_if_missing(conn, table, column, col_type):
+    """Add a column to a table if it doesn't already exist (safe for migrations)."""
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+        conn.commit()
+    except Exception:
+        pass  # Column already exists
+
+
+def get_posts(label_filter=None, verified_filter=None, search=None, page=1, per_page=25, username=None, assigned_to=None):
     conn = get_db()
     conditions = []
     params = []
@@ -191,6 +207,10 @@ def get_posts(label_filter=None, verified_filter=None, search=None, page=1, per_
     if search:
         conditions.append("(p.title LIKE ? OR p.id LIKE ?)")
         params.extend([f"%{search}%", f"%{search}%"])
+
+    if assigned_to:
+        conditions.append("(p.assigned_annotator = ? AND p.assigned_batch IS NOT NULL AND p.assigned_batch != '')")
+        params.append(assigned_to)
 
     where = ""
     if conditions:

@@ -34,6 +34,12 @@
         </div>
     </div>
     <div class="card-body">
+        {% if post.assigned_annotator and post.assigned_batch %}
+        <div class="mb-2">
+            <span class="badge bg-info text-dark">Assigned to: {{ post.assigned_annotator }}</span>
+            <span class="badge bg-secondary">Batch: {{ post.assigned_batch }}</span>
+        </div>
+        {% endif %}
         <div class="post-body border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto; font-size: 0.9rem;">
             {{ post.body or '(No post body)' }}
         </div>

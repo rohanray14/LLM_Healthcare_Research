@@ -50,6 +50,13 @@
                 </div>
             </div>
             <div class="col-auto">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" name="my_assignments" id="my_assignments" value="1"
+                        {% if current_my_assignments %}checked{% endif %}>
+                    <label class="form-check-label" for="my_assignments">My assignments only</label>
+                </div>
+            </div>
+            <div class="col-auto">
                 <button type="submit" class="btn btn-sm btn-primary">Filter</button>
                 <a href="{{ url_for('annotator_dashboard') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
             </div>
@@ -64,9 +71,9 @@
             <tr>
                 <th>Post ID</th>
                 <th>Title</th>
+                <th>Assigned To</th>
+                <th>Batch</th>
                 <th>Label 1</th>
-                <th>Label 2</th>
-                <th>Label 3</th>
                 <th>Comments</th>
                 <th>Codes Applied</th>
                 <th>Action</th>
@@ -76,10 +83,22 @@
             {% for post in posts %}
             <tr>
                 <td><code>{{ post.id }}</code></td>
-                <td>{{ post.title[:80] }}{% if post.title|length > 80 %}...{% endif %}</td>
+                <td>{{ post.title[:60] }}{% if post.title|length > 60 %}...{% endif %}</td>
+                <td>
+                    {% if post.assigned_annotator %}
+                    <span class="badge bg-info text-dark">{{ post.assigned_annotator }}</span>
+                    {% else %}
+                    <span class="text-muted small">--</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if post.assigned_batch %}
+                    <span class="badge bg-secondary">{{ post.assigned_batch }}</span>
+                    {% else %}
+                    <span class="text-muted small">--</span>
+                    {% endif %}
+                </td>
                 <td><span class="badge-label">{{ post.label1 or '-' }}</span></td>
-                <td><span class="badge-label-secondary">{{ post.label2 or '-' }}</span></td>
-                <td><span class="badge-label-secondary">{{ post.label3 or '-' }}</span></td>
                 <td>{{ post.num_comments }}</td>
                 <td>
                     {% set codes = code_summaries.get(post.id, []) %}

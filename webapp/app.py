@@ -253,6 +253,7 @@ def export_data():
 def annotator_dashboard():
     search = request.args.get("search", "")
     code_filter = request.args.getlist("codes")  # multi-select
+    my_assignments = request.args.get("my_assignments", "")
     page = int(request.args.get("page", 1))
 
     posts, total = get_posts(
@@ -260,6 +261,7 @@ def annotator_dashboard():
         page=page,
         per_page=25,
         username=session["username"],
+        assigned_to=session["username"] if my_assignments else None,
     )
     progress = get_annotation_progress(session["username"])
     total_pages = max(1, (total + 24) // 25)
@@ -285,6 +287,7 @@ def annotator_dashboard():
         total_pages=total_pages,
         current_search=search,
         current_codes=code_filter,
+        current_my_assignments=my_assignments,
         progress=progress,
         code_summaries=code_summaries,
         comment_codes=COMMENT_CODES,
