@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Class Summaries - Top 30 Analysis{% endblock %}
+{% block content %}
+
+<h5 class="mb-3">Class-Level Syntheses <span class="badge bg-primary">{{ summaries|length }} classes</span></h5>
+
+<div class="row">
+    {% for cls, s in summaries.items() | sort %}
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between">
+                <h6 class="mb-0">{{ cls }}</h6>
+                <a href="{{ url_for('class_detail', class_label=cls) }}" class="btn btn-sm btn-outline-primary">Full Detail</a>
+            </div>
+            <div class="card-body">
+                {% if s.overall_takeaway %}
+                <p style="font-size:0.88rem;">{{ s.overall_takeaway[:300] }}{% if s.overall_takeaway|length > 300 %}...{% endif %}</p>
+                {% endif %}
+                <div class="d-flex gap-3" style="font-size:0.82rem;">
+                    <span><strong>Themes:</strong> {{ s.top_themes|length }}</span>
+                    <span><strong>Agreement areas:</strong> {{ s.agreement_areas|length }}</span>
+                    <span><strong>Divergence axes:</strong> {{ s.divergence_axes|length }}</span>
+                    <span><strong>Clinical patterns:</strong> {{ s.clinically_relevant_patterns|length }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% endblock %}

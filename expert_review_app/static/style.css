@@ -1,0 +1,139 @@
+body { background: #f5f6fa; font-size: 0.92rem; }
+
+/* Source panel (left side) */
+.sticky-panel { position: sticky; top: 1rem; }
+.source-panel { max-height: calc(100vh - 160px); overflow-y: auto; }
+
+.comment-card {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    background: #fff;
+    transition: background 0.3s;
+}
+.comment-card.highlight {
+    background: #fff3cd;
+    border-color: #ffc107;
+    box-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
+}
+.comment-label {
+    font-weight: 700;
+    color: #6c757d;
+    font-size: 0.8rem;
+    margin-bottom: 2px;
+}
+.comment-text { white-space: pre-wrap; word-break: break-word; }
+
+/* Comment references */
+.comment-ref {
+    color: #0d6efd;
+    text-decoration: underline;
+    cursor: pointer;
+    font-weight: 600;
+}
+.comment-ref:hover { color: #0a58ca; }
+
+/* Review items */
+.review-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+.review-item-content { flex: 1; min-width: 0; }
+.review-item-text { font-size: 0.88rem; margin-bottom: 4px; }
+.review-item-meta { font-size: 0.78rem; color: #6c757d; }
+
+.verdict-controls {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+/* Verdict buttons */
+.verdict-btn {
+    border: 1px solid #ccc;
+    background: #fff;
+    color: #333;
+    font-size: 0.78rem;
+    padding: 3px 10px;
+    border-radius: 4px;
+    transition: all 0.15s;
+}
+.verdict-btn.correct.active { background: #198754; color: #fff; border-color: #198754; }
+.verdict-btn.incorrect.active { background: #dc3545; color: #fff; border-color: #dc3545; }
+.verdict-btn.not-sure.active { background: #6c757d; color: #fff; border-color: #6c757d; }
+.verdict-btn:hover { opacity: 0.85; }
+
+/* Note toggle button */
+.note-toggle-btn {
+    border: 1px solid #ccc;
+    background: #fff;
+    color: #999;
+    font-size: 0.85rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+.note-toggle-btn.has-note {
+    background: #fff3cd;
+    border-color: #ffc107;
+    color: #856404;
+}
+.note-toggle-btn:hover { opacity: 0.85; }
+
+/* Note area */
+.note-area {
+    margin-top: 6px;
+    padding: 0 12px 8px;
+}
+
+/* Review item layout — wrap so note can go below */
+.review-item { flex-wrap: wrap; }
+
+/* Annotatable text */
+.annotatable-text {
+    font-size: 0.88rem;
+    line-height: 1.6;
+    padding: 8px;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    cursor: text;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Highlights in annotated text */
+mark.hl-correct { background: rgba(25, 135, 84, 0.25); border-bottom: 2px solid #198754; }
+mark.hl-incorrect { background: rgba(220, 53, 69, 0.25); border-bottom: 2px solid #dc3545; }
+mark.hl-unsure { background: rgba(108, 117, 125, 0.2); border-bottom: 2px solid #6c757d; }
+
+/* Annotation tags below text */
+.annotation-tag {
+    font-size: 0.82rem;
+    padding: 4px 8px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.annotation-tag em { color: #555; }
+
+/* Section cards */
+.section-card { border-left: 3px solid #0d6efd; }
+
+/* Annotation modal */
+#annotationModal .btn-outline-success.active { background: #198754; color: #fff; }
+#annotationModal .btn-outline-danger.active { background: #dc3545; color: #fff; }
+#annotationModal .btn-outline-secondary.active { background: #6c757d; color: #fff; }

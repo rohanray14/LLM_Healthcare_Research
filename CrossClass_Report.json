@@ -17,17 +17,17 @@
     "Access Logistics": {
       "divergence_count": 1,
       "risk_note_count": 2,
-      "theme_count": 1
+      "theme_count": 2
     },
     "Co-occuring Drug Usage": {
       "divergence_count": 2,
       "risk_note_count": 2,
-      "theme_count": 3
+      "theme_count": 1
     },
     "MOUD Administration": {
       "divergence_count": 2,
       "risk_note_count": 2,
-      "theme_count": 1
+      "theme_count": 3
     },
     "Others": {
       "divergence_count": 2,
@@ -35,15 +35,15 @@
       "theme_count": 1
     },
     "Psycho-Physical Effects": {
-      "divergence_count": 1,
+      "divergence_count": 2,
       "risk_note_count": 2,
-      "theme_count": 3
+      "theme_count": 2
     },
     "Tapering": {
       "divergence_count": 2,
       "risk_note_count": 2,
-      "theme_count": 1
+      "theme_count": 3
     }
   },
-  "comparison_table": "| Class | Post count | Divergence axes | Risk/clinical notes |\n|-------|------------|-----------------|---------------------|\n| Access Logistics | 52 | 1 | 2 |\n| Co-occuring Drug Usage | 56 | 2 | 2 |\n| MOUD Administration | 52 | 2 | 2 |\n| Others | 60 | 2 | 2 |\n| Psycho-Physical Effects | 58 | 1 | 2 |\n| Tapering | 60 | 2 | 2 |"
+  "comparison_table": "| Class | Post count | Divergence axes | Risk/clinical notes |\n|-------|------------|-----------------|---------------------|\n| Access Logistics | 54 | 1 | 2 |\n| Co-occuring Drug Usage | 64 | 2 | 2 |\n| MOUD Administration | 62 | 2 | 2 |\n| Others | 60 | 2 | 2 |\n| Psycho-Physical Effects | 58 | 2 | 2 |\n| Tapering | 62 | 2 | 2 |"
 }

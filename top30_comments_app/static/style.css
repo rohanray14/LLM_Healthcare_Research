@@ -1,0 +1,100 @@
+body { font-size: 0.92rem; }
+
+/* Comment cards */
+.comment-card {
+    display: flex;
+    gap: 8px;
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 0.83rem;
+    transition: background 0.3s;
+}
+.comment-card.highlight {
+    background: #fff3cd;
+    border-color: #ffc107;
+}
+.comment-label {
+    font-weight: bold;
+    color: #6c757d;
+    white-space: nowrap;
+    min-width: 28px;
+}
+.comment-text { flex: 1; }
+
+/* Sticky left panel */
+.sticky-panel { position: sticky; top: 10px; }
+.source-panel { max-height: calc(100vh - 180px); overflow-y: auto; }
+
+/* Review items */
+.review-item {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    border-left: 3px solid #dee2e6;
+    background: #f8f9fa;
+    border-radius: 4px;
+    align-items: flex-start;
+}
+.review-item-content { flex: 1; min-width: 0; }
+.review-item-text { font-size: 0.88rem; margin-bottom: 4px; }
+.review-item-meta { font-size: 0.78rem; color: #6c757d; }
+
+/* Verdict buttons */
+.verdict-controls { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.verdict-btn {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid #ccc;
+    background: white;
+    cursor: pointer;
+}
+.verdict-btn.correct { color: #198754; border-color: #198754; }
+.verdict-btn.incorrect { color: #dc3545; border-color: #dc3545; }
+.verdict-btn.not-sure { color: #6c757d; border-color: #6c757d; }
+.verdict-btn.active.correct { background: #198754; color: white; }
+.verdict-btn.active.incorrect { background: #dc3545; color: white; }
+.verdict-btn.active.not-sure { background: #6c757d; color: white; }
+
+/* Note toggle */
+.note-toggle-btn {
+    font-size: 0.9rem;
+    padding: 0 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+}
+.note-toggle-btn.has-note { background: #fff3cd; border-color: #ffc107; }
+.note-area { width: 100%; margin-top: 4px; }
+
+/* Text annotations */
+.annotatable-text { font-size: 0.88rem; cursor: text; }
+.annotation-tag {
+    display: inline-block;
+    margin: 2px 4px;
+    padding: 2px 6px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    font-size: 0.78rem;
+}
+
+/* Highlight marks */
+mark.hl-correct { background: #d4edda; border-bottom: 2px solid #198754; }
+mark.hl-incorrect { background: #f8d7da; border-bottom: 2px solid #dc3545; }
+mark.hl-unsure { background: #e2e3e5; border-bottom: 2px solid #6c757d; }
+
+/* Comment refs */
+.comment-ref {
+    color: #0d6efd;
+    font-weight: bold;
+    text-decoration: none;
+    cursor: pointer;
+}
+.comment-ref:hover { text-decoration: underline; }
+
+.card-header h6 { font-size: 0.9rem; }

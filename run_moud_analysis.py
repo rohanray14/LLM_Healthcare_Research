@@ -113,10 +113,17 @@ def main():
         default="both",
         help="Which provider(s) to run (default: both)",
     )
+    parser.add_argument(
+        "--input",
+        type=str,
+        default=None,
+        help="Input Excel path (default: Top10_High_With_Text_And_Comments.xlsx)",
+    )
     args = parser.parse_args()
 
-    if not EXCEL_PATH.exists():
-        print(f"Error: Excel not found at {EXCEL_PATH}")
+    excel_path = Path(args.input) if args.input else EXCEL_PATH
+    if not excel_path.exists():
+        print(f"Error: Excel not found at {excel_path}")
         return 1
 
     need_openai = args.provider in ("openai", "both")
@@ -128,7 +135,7 @@ def main():
         print("Error: ANTHROPIC_API_KEY not set. Add it to .env or export it.")
         return 1
 
-    wb = openpyxl.load_workbook(EXCEL_PATH, read_only=False)
+    wb = openpyxl.load_workbook(excel_path, read_only=False)
     ws = wb["Sheet1"] if "Sheet1" in wb.sheetnames else wb.active
 
     # Ensure header for Claude column exists
@@ -157,7 +164,7 @@ def main():
     print(f"Rows to process: {len(to_process)} (provider: {args.provider})")
     if not to_process:
         print("Nothing to do.")
-        wb.save(EXCEL_PATH)
+        wb.save(excel_path)
         wb.close()
         return 0
 
@@ -183,7 +190,7 @@ def main():
             if run_claude:
                 out = call_claude(prompt)
                 ws.cell(row=row_idx, column=COL_CLAUDE_OUTPUT).value = out
-            wb.save(EXCEL_PATH)
+            wb.save(excel_path)
             print("OK")
         except Exception as e:
             print(f"ERROR: {type(e).__name__}: {e}")

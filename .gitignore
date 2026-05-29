@@ -5,3 +5,16 @@
 __pycache__/
 *.pyc
 webapp/verification.db
+
+# Temp/lock files
+~$*.xlsx
+*.log
+
+# Large data duplicates in app subdirs
+top30_comments_app/data/6K_data_with_comments*
+top30_comments_app/instance/
+expert_review_app/instance/
+
+# Duplicate/temp Excel copies
+PostLevel_Outputs\ (1).xlsx
+Top10_High_With_Text_And_Comments\ copy.xlsx

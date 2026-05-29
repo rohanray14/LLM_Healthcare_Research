@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Top 30 Analysis{% endblock %}
+{% block content %}
+
+<div class="row mb-3 align-items-end">
+    <div class="col-md-4">
+        <h5>Top 30 Posts by Comments <span class="badge bg-primary">{{ total_posts }} posts</span></h5>
+    </div>
+    <div class="col-md-8">
+        <form method="GET" class="row g-2 justify-content-end">
+            <div class="col-auto">
+                <select name="model" class="form-select form-select-sm">
+                    {% for m in models %}
+                    <option value="{{ m }}" {% if m == current_model %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <select name="class" class="form-select form-select-sm">
+                    <option value="">All Classes</option>
+                    {% for c in all_classes %}
+                    <option value="{{ c }}" {% if c == current_class %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <input type="text" name="search" class="form-control form-control-sm" placeholder="Search title/ID..." value="{{ search }}">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Progress bar -->
+{% set pct = (total_reviewed / total_items * 100) if total_items > 0 else 0 %}
+<div class="progress mb-3" style="height: 22px;">
+    <div class="progress-bar bg-success" style="width: {{ pct|round(1) }}%">
+        {{ total_reviewed }} / {{ total_items }} action items reviewed ({{ pct|round(1) }}%)
+    </div>
+</div>
+
+<!-- Stats cards -->
+<div class="row mb-3">
+    {% for cls in all_classes %}
+    {% set cls_posts = posts | selectattr('class_label', 'equalto', cls) | list %}
+    <div class="col-md-2">
+        <div class="card text-center {% if current_class == cls %}border-primary{% endif %}">
+            <div class="card-body py-2">
+                <a href="?class={{ cls }}&model={{ current_model }}" class="text-decoration-none">
+                    <div class="fw-bold" style="font-size:0.8rem;">{{ cls }}</div>
+                    <div class="fs-5 text-primary">{{ cls_posts | length }}</div>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover table-sm">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Post ID</th>
+                <th>Title</th>
+                <th>Class</th>
+                <th>Action Items</th>
+                <th>Reviewed</th>
+                <th>Annotations</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in posts %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td><code>{{ p.post_id }}</code></td>
+                <td>{{ p.title[:80] }}{% if p.title|length > 80 %}...{% endif %}</td>
+                <td><span class="badge bg-secondary">{{ p.class_label }}</span></td>
+                <td>{{ p.total_items }}</td>
+                <td>
+                    {% if p.reviewed >= p.total_items and p.total_items > 0 %}
+                    <span class="badge bg-success">Done</span>
+                    {% elif p.reviewed > 0 %}
+                    <span class="badge bg-warning text-dark">{{ p.reviewed }}/{{ p.total_items }}</span>
+                    {% else %}
+                    <span class="text-muted">--</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if p.annotations > 0 %}
+                    <span class="badge bg-info">{{ p.annotations }}</span>
+                    {% else %}
+                    <span class="text-muted">--</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('post_detail', post_id=p.post_id, model=current_model) }}" class="btn btn-sm btn-outline-primary">Review</a>
+                    <a href="{{ p.link }}" target="_blank" class="btn btn-sm btn-outline-danger">Reddit</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<p class="text-muted small">{{ posts|length }} posts shown for model <strong>{{ current_model }}</strong></p>
+
+{% endblock %}

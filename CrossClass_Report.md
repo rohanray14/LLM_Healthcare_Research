@@ -19,9 +19,9 @@
 
 | Class | Post count | Divergence axes | Risk/clinical notes |
 |-------|------------|-----------------|---------------------|
-| Access Logistics | 52 | 1 | 2 |
-| Co-occuring Drug Usage | 56 | 2 | 2 |
-| MOUD Administration | 52 | 2 | 2 |
+| Access Logistics | 54 | 1 | 2 |
+| Co-occuring Drug Usage | 64 | 2 | 2 |
+| MOUD Administration | 62 | 2 | 2 |
 | Others | 60 | 2 | 2 |
-| Psycho-Physical Effects | 58 | 1 | 2 |
-| Tapering | 60 | 2 | 2 |
+| Psycho-Physical Effects | 58 | 2 | 2 |
+| Tapering | 62 | 2 | 2 |

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ summary.class_label }} - Class Summary{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between mb-3">
+    <h5>{{ summary.class_label }}</h5>
+    <a href="{{ url_for('class_summaries') }}" class="btn btn-sm btn-outline-dark">All Classes</a>
+</div>
+
+<!-- Overall Takeaway -->
+<div class="card mb-3">
+    <div class="card-header"><h6 class="mb-0">Overall Takeaway</h6></div>
+    <div class="card-body">
+        <p>{{ summary.overall_takeaway }}</p>
+    </div>
+</div>
+
+<!-- Top Themes -->
+<div class="card mb-3">
+    <div class="card-header"><h6 class="mb-0">Top Themes ({{ summary.top_themes|length }})</h6></div>
+    <div class="card-body">
+        {% for theme in summary.top_themes %}
+        <div class="mb-2 p-2 bg-light rounded">
+            {% if theme is mapping %}
+            <strong>{{ theme.theme }}</strong>
+            {% if theme.count %}<span class="badge bg-primary ms-1">{{ theme.count }} posts</span>{% endif %}
+            {% if theme.example_posts %}<br><small class="text-muted">Examples: {{ theme.example_posts | join(', ') }}</small>{% endif %}
+            {% else %}
+            {{ theme }}
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Agreement Areas -->
+<div class="card mb-3">
+    <div class="card-header"><h6 class="mb-0">Agreement Areas ({{ summary.agreement_areas|length }})</h6></div>
+    <div class="card-body">
+        <ul class="mb-0">
+        {% for area in summary.agreement_areas %}
+            <li>{{ area }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<!-- Divergence Axes -->
+<div class="card mb-3">
+    <div class="card-header"><h6 class="mb-0">Divergence Axes ({{ summary.divergence_axes|length }})</h6></div>
+    <div class="card-body">
+        {% for axis in summary.divergence_axes %}
+        <div class="mb-2 p-2 bg-light rounded">
+            {% if axis is mapping %}
+            <strong>{{ axis.axis }}</strong>
+            {% if axis.views %}<br>Views: {{ axis.views | join(' vs ') }}{% endif %}
+            {% if axis.example_posts %}<br><small class="text-muted">Examples: {{ axis.example_posts | join(', ') }}</small>{% endif %}
+            {% else %}
+            {{ axis }}
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Clinically Relevant Patterns -->
+<div class="card mb-3">
+    <div class="card-header"><h6 class="mb-0">Clinically Relevant Patterns ({{ summary.clinically_relevant_patterns|length }})</h6></div>
+    <div class="card-body">
+        <ul class="mb-0">
+        {% for pattern in summary.clinically_relevant_patterns %}
+            <li>{{ pattern }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Admin - Expert Review{% endblock %}
+{% block content %}
+
+<h4 class="mb-3">Admin Panel</h4>
+
+<!-- Add Expert -->
+<div class="card mb-4">
+    <div class="card-header"><h6 class="mb-0">Add New Expert</h6></div>
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label">Username</label>
+                <input type="text" id="newUsername" class="form-control form-control-sm" placeholder="Username">
+            </div>
+            <div class="col-auto">
+                <label class="form-label">Password</label>
+                <input type="password" id="newPassword" class="form-control form-control-sm" placeholder="Password">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-primary" id="addExpertBtn">Add Expert</button>
+            </div>
+            <div class="col-auto">
+                <span id="addStatus"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Expert Assignments -->
+{% for expert in experts %}
+{% if expert.username != 'admin' %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">{{ expert.username }}</h6>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-info">{{ assignments.get(expert.id, [])|length }} posts assigned</span>
+            <button class="btn btn-sm btn-success save-assignments-btn" data-expert-id="{{ expert.id }}">Save</button>
+            <span class="assign-status" data-expert-id="{{ expert.id }}"></span>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row g-2 mb-2">
+            <div class="col-auto">
+                <input type="text" class="form-control form-control-sm post-search" data-expert-id="{{ expert.id }}" placeholder="Search posts...">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-outline-primary select-all-btn" data-expert-id="{{ expert.id }}">Select All Visible</button>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-outline-secondary clear-all-btn" data-expert-id="{{ expert.id }}">Clear All</button>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0 small text-muted mt-1">Range:</label>
+            </div>
+            <div class="col-auto">
+                <input type="number" class="form-control form-control-sm range-from" data-expert-id="{{ expert.id }}" placeholder="From #" style="width:80px;">
+            </div>
+            <div class="col-auto">
+                <input type="number" class="form-control form-control-sm range-to" data-expert-id="{{ expert.id }}" placeholder="To #" style="width:80px;">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-sm btn-outline-primary select-range-btn" data-expert-id="{{ expert.id }}">Select Range</button>
+            </div>
+        </div>
+        <div class="post-checklist border rounded p-2" data-expert-id="{{ expert.id }}" style="max-height:300px;overflow-y:auto;">
+            {% for pid in all_post_ids %}
+            <div class="form-check post-check-item" data-post-id="{{ pid }}">
+                <input class="form-check-input post-checkbox" type="checkbox" value="{{ pid }}" id="chk-{{ expert.id }}-{{ loop.index }}"
+                    {% if pid in assignments.get(expert.id, []) %}checked{% endif %}>
+                <label class="form-check-label small" for="chk-{{ expert.id }}-{{ loop.index }}">
+                    <span class="text-muted">#{{ loop.index }}</span> {{ pid }}
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add expert
+document.getElementById('addExpertBtn').addEventListener('click', function() {
+    const username = document.getElementById('newUsername').value.trim();
+    const password = document.getElementById('newPassword').value.trim();
+    const status = document.getElementById('addStatus');
+    if (!username || !password) { status.innerHTML = '<small class="text-danger">Fill both fields</small>'; return; }
+
+    fetch('/admin/add_expert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.ok) {
+            status.innerHTML = '<small class="text-success">Added! Reloading...</small>';
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            status.innerHTML = `<small class="text-danger">${d.error}</small>`;
+        }
+    });
+});
+
+// Search posts
+document.querySelectorAll('.post-search').forEach(input => {
+    input.addEventListener('input', function() {
+        const expertId = this.dataset.expertId;
+        const query = this.value.toLowerCase();
+        const container = document.querySelector(`.post-checklist[data-expert-id="${expertId}"]`);
+        container.querySelectorAll('.post-check-item').forEach(item => {
+            const pid = item.dataset.postId.toLowerCase();
+            item.style.display = pid.includes(query) ? '' : 'none';
+        });
+    });
+});
+
+// Select all visible
+document.querySelectorAll('.select-all-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const expertId = this.dataset.expertId;
+        const container = document.querySelector(`.post-checklist[data-expert-id="${expertId}"]`);
+        container.querySelectorAll('.post-check-item').forEach(item => {
+            if (item.style.display !== 'none') {
+                item.querySelector('.post-checkbox').checked = true;
+            }
+        });
+    });
+});
+
+// Clear all
+document.querySelectorAll('.clear-all-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const expertId = this.dataset.expertId;
+        const container = document.querySelector(`.post-checklist[data-expert-id="${expertId}"]`);
+        container.querySelectorAll('.post-checkbox').forEach(cb => cb.checked = false);
+    });
+});
+
+// Select range
+document.querySelectorAll('.select-range-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const expertId = this.dataset.expertId;
+        const from = parseInt(document.querySelector(`.range-from[data-expert-id="${expertId}"]`).value) || 1;
+        const to = parseInt(document.querySelector(`.range-to[data-expert-id="${expertId}"]`).value) || from;
+        const container = document.querySelector(`.post-checklist[data-expert-id="${expertId}"]`);
+        const items = container.querySelectorAll('.post-check-item');
+        items.forEach((item, i) => {
+            const num = i + 1;
+            if (num >= from && num <= to) {
+                item.querySelector('.post-checkbox').checked = true;
+            }
+        });
+    });
+});
+
+// Save assignments
+document.querySelectorAll('.save-assignments-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const expertId = this.dataset.expertId;
+        const container = document.querySelector(`.post-checklist[data-expert-id="${expertId}"]`);
+        const postIds = Array.from(container.querySelectorAll('.post-checkbox:checked')).map(cb => cb.value);
+        const status = document.querySelector(`.assign-status[data-expert-id="${expertId}"]`);
+
+        fetch('/admin/assign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ expert_id: parseInt(expertId), post_ids: postIds }),
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.ok) {
+                status.innerHTML = `<small class="text-success">Saved ${postIds.length} assignments</small>`;
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
