@@ -61,35 +61,37 @@ def _parse_comments_text(text):
 
 
 def load_comments():
-    """Load comments from Top30 input file (has full comment text) and 6K dataset."""
+    """Load comments from Top30 input file (has full comment text) and optionally 6K dataset."""
     comments_data = {}
 
-    # First load from 6K dataset (Comment1-10 columns)
-    wb = openpyxl.load_workbook(BASE / "6K_data_with_comments (1).xlsx", read_only=True)
-    ws = wb[wb.sheetnames[0]]
-    rows = list(ws.iter_rows(values_only=True))
-    headers = rows[0]
-    comment_cols = [h for h in headers if h and str(h).startswith("Comment")]
-    for row in rows[1:]:
-        d = dict(zip(headers, row))
-        pid = str(d["id"])
-        body = d.get("body", "")
-        if pd.isna(body):
-            body = ""
-        comments = []
-        for col in comment_cols:
-            val = d.get(col)
-            if val and not pd.isna(val) and str(val).strip():
-                comments.append(str(val).strip())
-        comments_data[pid] = {
-            "post_id": pid,
-            "title": d.get("title", ""),
-            "body": str(body),
-            "comments": comments,
-        }
-    wb.close()
+    # Try loading from 6K dataset (Comment1-10 columns) if available
+    six_k_path = BASE / "6K_data_with_comments (1).xlsx"
+    if six_k_path.exists():
+        wb = openpyxl.load_workbook(six_k_path, read_only=True)
+        ws = wb[wb.sheetnames[0]]
+        rows = list(ws.iter_rows(values_only=True))
+        headers = rows[0]
+        comment_cols = [h for h in headers if h and str(h).startswith("Comment")]
+        for row in rows[1:]:
+            d = dict(zip(headers, row))
+            pid = str(d["id"])
+            body = d.get("body", "")
+            if pd.isna(body):
+                body = ""
+            comments = []
+            for col in comment_cols:
+                val = d.get(col)
+                if val and not pd.isna(val) and str(val).strip():
+                    comments.append(str(val).strip())
+            comments_data[pid] = {
+                "post_id": pid,
+                "title": d.get("title", ""),
+                "body": str(body),
+                "comments": comments,
+            }
+        wb.close()
 
-    # Then enrich with Top30 input file which may have post_text
+    # Load/enrich from Top30 input file
     top30_path = BASE / "Top30_By_Comments_Input.xlsx"
     if top30_path.exists():
         df = pd.read_excel(top30_path, engine="openpyxl")
@@ -97,20 +99,33 @@ def load_comments():
             pid = str(row.get("post_id", ""))
             if not pid:
                 continue
+
+            # If post not already loaded from 6K, create entry from Top30 data
+            if pid not in comments_data:
+                title = row.get("title", "")
+                if pd.isna(title):
+                    title = ""
+                post_text = row.get("post_text", "")
+                if pd.isna(post_text):
+                    post_text = ""
+                comments_data[pid] = {
+                    "post_id": pid,
+                    "title": str(title),
+                    "body": str(post_text),
+                    "comments": [],
+                }
+
             post_text = row.get("post_text")
             if post_text and not pd.isna(post_text) and str(post_text).strip():
-                if pid in comments_data:
-                    # Use post_text if body was empty
-                    if not comments_data[pid]["body"].strip():
-                        comments_data[pid]["body"] = str(post_text)
+                if not comments_data[pid]["body"].strip():
+                    comments_data[pid]["body"] = str(post_text)
 
-            # Parse comments from the combined text (may have more detail)
+            # Parse comments from the combined text
             comments_text = row.get("top_level_comments_text")
             if comments_text and not pd.isna(comments_text):
                 parsed = _parse_comments_text(str(comments_text))
-                if parsed and len(parsed) >= len(comments_data.get(pid, {}).get("comments", [])):
-                    if pid in comments_data:
-                        comments_data[pid]["comments"] = parsed
+                if parsed and len(parsed) >= len(comments_data[pid].get("comments", [])):
+                    comments_data[pid]["comments"] = parsed
 
     return comments_data
 
