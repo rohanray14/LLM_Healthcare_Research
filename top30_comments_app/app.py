@@ -330,17 +330,40 @@ def class_detail(class_label):
 
 # ── Startup ───────────────────────────────────────────
 
-def seed_admin():
-    if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin")
-        admin.set_password("admin123")
-        db.session.add(admin)
-        db.session.commit()
+# Seeded accounts (passwords reset on every startup so credentials stay reliable)
+SEED_USERS = {
+    "admin": "admin123",
+    "dr_smith": "password123",
+    "dr_jones": "password456",
+    "anusha": "anusha2026",
+    "sarah": "sarah2026",
+    "nikhil": "nikhil2026",
+    "reet": "reet2026",
+    "mehar": "mehar2026",
+    "ruiqi": "ruiqi2026",
+    "annotator5": "annotate500",
+    "annotator6": "annotate600",
+    "annotator7": "annotate700",
+    "annotator8": "annotate800",
+    "annotator9": "annotate900",
+    "annotator10": "annotate1000",
+}
+
+
+def seed_users():
+    """Create or reset passwords for known team accounts."""
+    for username, password in SEED_USERS.items():
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            user = User(username=username)
+            db.session.add(user)
+        user.set_password(password)
+    db.session.commit()
 
 
 with app.app_context():
     db.create_all()
-    seed_admin()
+    seed_users()
     init_data()
 
 if __name__ == "__main__":

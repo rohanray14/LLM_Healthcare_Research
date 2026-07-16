@@ -722,14 +722,20 @@ def authenticate_user(username, password):
 
 
 def seed_users(users_dict):
-    """Seed the users table from the legacy USERS config dict (idempotent)."""
+    """Create or reset passwords for known team accounts from USERS config."""
     conn = get_db()
     for username, info in users_dict.items():
         existing = conn.execute("SELECT username FROM users WHERE username = ?", (username,)).fetchone()
+        pw_hash = generate_password_hash(info["password"])
         if not existing:
             conn.execute(
                 "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-                (username, generate_password_hash(info["password"]), info["role"]),
+                (username, pw_hash, info["role"]),
+            )
+        else:
+            conn.execute(
+                "UPDATE users SET password_hash = ?, role = ? WHERE username = ?",
+                (pw_hash, info["role"], username),
             )
     conn.commit()
     conn.close()
