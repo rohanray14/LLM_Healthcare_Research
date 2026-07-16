@@ -58,7 +58,7 @@
         <!-- 1. SUMMARY -->
         <div class="card mb-3 section-card" data-section="summary">
             <div class="card-header d-flex justify-content-between">
-                <h6 class="mb-0">1. Summary of Post and Details</h6>
+                <h6 class="mb-0">{% if current_model == 'comment_annotations' %}1. Post Body{% else %}1. Summary of Post and Details{% endif %}</h6>
                 <small class="text-muted">Highlight text to annotate</small>
             </div>
             <div class="card-body">
@@ -67,9 +67,15 @@
             </div>
         </div>
 
-        <!-- 2. UNIQUE ADVICE -->
+        <!-- 2. UNIQUE ADVICE / COMMENT ANNOTATIONS -->
         <div class="card mb-3 section-card" data-section="advice">
-            <div class="card-header"><h6 class="mb-0">2. Unique Advice ({{ post.advice|length }} action items)</h6></div>
+            <div class="card-header"><h6 class="mb-0">
+                {% if current_model == 'comment_annotations' %}
+                2. Comment Annotations ({{ post.advice|length }} comments)
+                {% else %}
+                2. Unique Advice ({{ post.advice|length }} action items)
+                {% endif %}
+            </h6></div>
             <div class="card-body">
                 {% for item in post.advice %}
                 {% set rev = existing_reviews.get(('advice', loop.index0)) %}
@@ -79,9 +85,15 @@
                             <strong>{{ item.advice }}</strong>
                         </div>
                         <div class="review-item-meta">
+                            {% if current_model == 'comment_annotations' %}
+                            <span class="badge bg-info text-dark">{{ item.agreement }}</span>
+                            {% if item.support %}Claim Spans: <em>{{ item.support | join(' | ') }}</em>{% endif %}
+                            {% if item.counterpoints %} <br><small class="text-muted">Notes: {{ item.counterpoints | join(', ') }}</small>{% endif %}
+                            {% else %}
                             <span class="badge bg-{{ 'success' if item.agreement == 'high' else ('warning text-dark' if item.agreement == 'mixed' else 'danger') }}">{{ item.agreement }}</span>
                             Support: {{ item.support | join(', ') }}
                             {% if item.counterpoints %} | Counter: {{ item.counterpoints | join(', ') }}{% endif %}
+                            {% endif %}
                         </div>
                     </div>
                     <div class="verdict-controls">

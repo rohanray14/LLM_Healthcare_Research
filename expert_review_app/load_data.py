@@ -1,8 +1,10 @@
+import csv
 import json
 import openpyxl
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent / "data"
+SAMPLE_ANNOT_MODEL = "comment_annotations"
 
 
 def _safe_json(val):
@@ -70,10 +72,93 @@ def load_comments():
     return data
 
 
+def load_sample_annotations():
+    """Load comment-level annotations from sample_annotations.csv.
+
+    Returns posts dict entries keyed by (post_id, SAMPLE_ANNOT_MODEL) and
+    a dict of comment data keyed by post_id (used as fallback when post
+    is not in the 6K comments file).
+    """
+    path = BASE / "sample_annotations.csv"
+    if not path.exists():
+        return {}, {}
+
+    # Group rows by post_id
+    from collections import OrderedDict
+    grouped = OrderedDict()
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            pid = row["post_id"]
+            if pid not in grouped:
+                grouped[pid] = {
+                    "title": row.get("post_title") or "",
+                    "body": row.get("post_body") or "",
+                    "themes": row.get("themes") or "",
+                    "comments": [],
+                }
+            grouped[pid]["comments"].append({
+                "comment_id": row.get("comment_id") or "",
+                "comment_body": row.get("comment_body") or "",
+                "l1_coding": row.get("l1_coding") or "",
+                "span_if_claim": row.get("span_if_claim") or "",
+                "nikil_notes": row.get("nikil_notes") or "",
+            })
+
+    posts = {}
+    comment_fallbacks = {}
+    for pid, info in grouped.items():
+        # Build advice-style items from each comment annotation
+        advice_items = []
+        for c in info["comments"]:
+            advice_items.append({
+                "advice": c["comment_body"],
+                "agreement": c["l1_coding"],
+                "support": [s.strip() for s in c["span_if_claim"].split(",") if s.strip()] if c["span_if_claim"] else [],
+                "counterpoints": [c["nikil_notes"]] if c["nikil_notes"] else [],
+            })
+
+        key = (pid, SAMPLE_ANNOT_MODEL)
+        posts[key] = {
+            "class_label": info["themes"],
+            "post_id": pid,
+            "title": info["title"],
+            "link": f"https://www.reddit.com/r/suboxone/comments/{pid}/",
+            "model_family": "sample",
+            "model_name": SAMPLE_ANNOT_MODEL,
+            "summary": info["body"],
+            "advice": advice_items,
+            "divergences": [],
+            "clinical_notes": [],
+            "data_quality": "",
+        }
+
+        # Fallback comment data (in case post isn't in 6K file)
+        comment_fallbacks[pid] = {
+            "post_id": pid,
+            "title": info["title"],
+            "body": info["body"],
+            "label1": "",
+            "label2": "",
+            "label3": "",
+            "comments": [c["comment_body"] for c in info["comments"]],
+        }
+
+    return posts, comment_fallbacks
+
+
 def load_all():
     """Load and merge posts with their comments. Returns list of unique post_ids and full data."""
     posts = load_posts()
     comments = load_comments()
+
+    # Load sample annotations
+    sample_posts, sample_comments = load_sample_annotations()
+    posts.update(sample_posts)
+    # Only add comment fallbacks for posts not already in 6K data
+    for pid, cdata in sample_comments.items():
+        if pid not in comments:
+            comments[pid] = cdata
 
     # Get unique post_ids preserving order
     seen = set()
