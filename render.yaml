@@ -4,6 +4,11 @@ databases:
     databaseName: moud_verifier
     user: moud_user
 
+  - name: expert-review-db
+    plan: free
+    databaseName: expert_review
+    user: expert_user
+
 services:
   - type: web
     name: moud-post-verifier
@@ -23,3 +28,18 @@ services:
         sync: false
       - key: GOOGLE_SHEET_ID
         sync: false
+
+  - type: web
+    name: expert-review-app
+    runtime: python
+    buildCommand: pip install -r expert_review_app/requirements.txt
+    startCommand: cd expert_review_app && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: expert-review-db
+          property: connectionString
