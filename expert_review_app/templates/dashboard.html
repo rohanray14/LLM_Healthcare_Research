@@ -73,7 +73,8 @@
                     {% endif %}
                 </td>
                 <td>
-                    <a href="{{ url_for('review', post_id=p.post_id, model=current_model) }}" class="btn btn-sm btn-outline-primary">Review</a>
+                    <a href="{{ url_for('review', post_id=p.post_id, model=p.model_override or current_model) }}" class="btn btn-sm btn-outline-primary">Review</a>
+                    {% if p.model_override %}<br><small class="text-muted">{{ p.model_override }}</small>{% endif %}
                 </td>
             </tr>
             {% endfor %}

@@ -108,8 +108,15 @@ def dashboard():
 
         key = (pid, model_filter)
         post = POSTS.get(key)
+        # Fall back: show comment_annotations posts regardless of selected model
+        actual_model = model_filter
         if not post:
-            continue
+            fallback_key = (pid, "comment_annotations")
+            post = POSTS.get(fallback_key)
+            if post:
+                actual_model = "comment_annotations"
+            else:
+                continue
         comment_data = COMMENTS.get(pid, {})
 
         if search and search.lower() not in (post["title"] or "").lower() and search.lower() not in pid.lower():
@@ -124,12 +131,12 @@ def dashboard():
 
         # Count reviewed items
         reviewed = ItemReview.query.filter_by(
-            expert_id=expert.id, post_id=pid, model_name=model_filter
+            expert_id=expert.id, post_id=pid, model_name=actual_model
         ).filter(ItemReview.verdict.isnot(None)).count()
 
         # Count text annotations
         annot_count = TextAnnotation.query.filter_by(
-            expert_id=expert.id, post_id=pid, model_name=model_filter
+            expert_id=expert.id, post_id=pid, model_name=actual_model
         ).count()
 
         posts_list.append({
@@ -140,6 +147,7 @@ def dashboard():
             "reviewed": reviewed,
             "annotations": annot_count,
             "link": post["link"],
+            "model_override": actual_model if actual_model != model_filter else None,
         })
 
     return render_template(
@@ -169,7 +177,13 @@ def review(post_id):
     key = (post_id, model_name)
     post = POSTS.get(key)
     if not post:
-        return "Post not found", 404
+        # Fall back to comment_annotations
+        fallback_key = (post_id, "comment_annotations")
+        post = POSTS.get(fallback_key)
+        if post:
+            model_name = "comment_annotations"
+        else:
+            return "Post not found", 404
 
     comment_data = COMMENTS.get(post_id, {})
 
