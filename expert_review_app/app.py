@@ -448,11 +448,27 @@ def migrate_schema():
             db.session.commit()
 
 
+def assign_sample_posts():
+    """Auto-assign sample annotation posts to all experts."""
+    from load_data import SAMPLE_ANNOT_MODEL
+    sample_pids = [pid for (pid, m) in POSTS if m == SAMPLE_ANNOT_MODEL]
+    if not sample_pids:
+        return
+    experts = Expert.query.all()
+    for expert in experts:
+        existing = {a.post_id for a in Assignment.query.filter_by(expert_id=expert.id).all()}
+        for pid in sample_pids:
+            if pid not in existing:
+                db.session.add(Assignment(expert_id=expert.id, post_id=pid))
+    db.session.commit()
+
+
 with app.app_context():
     db.create_all()
     migrate_schema()
     seed_users()
     init_data()
+    assign_sample_posts()
 
 if __name__ == "__main__":
     app.run(debug=True, port=5001, use_reloader=False)
