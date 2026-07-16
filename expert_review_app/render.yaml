@@ -1,19 +1,22 @@
 databases:
   - name: expert-review-db
     plan: free
-    databaseName: expert_reviews
+    databaseName: expert_review
+    user: expert_user
 
 services:
   - type: web
     name: expert-review-app
     runtime: python
-    plan: free
+    rootDir: expert_review_app
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: SECRET_KEY
+        generateValue: true
       - key: DATABASE_URL
         fromDatabase:
           name: expert-review-db
           property: connectionString
-      - key: SECRET_KEY
-        generateValue: true
