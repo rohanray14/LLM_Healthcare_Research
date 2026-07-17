@@ -1,1 +1,1 @@
-web: gunicorn app:app --chdir expert_review_app --bind 0.0.0.0:${PORT:-5001} --timeout 120
+web: PYTHONPATH=expert_review_app gunicorn --chdir expert_review_app app:app --bind 0.0.0.0:${PORT:-5001} --timeout 120
