@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["python311"]
+
+[phases.install]
+cmds = ["pip install -r expert_review_app/requirements.txt"]
+
+[start]
+cmd = "cd expert_review_app && python -m gunicorn app:app --bind 0.0.0.0:${PORT:-8080} --timeout 120"
