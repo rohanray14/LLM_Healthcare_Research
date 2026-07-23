@@ -137,3 +137,55 @@ mark.hl-unsure { background: rgba(108, 117, 125, 0.2); border-bottom: 2px solid 
 #annotationModal .btn-outline-success.active { background: #198754; color: #fff; }
 #annotationModal .btn-outline-danger.active { background: #dc3545; color: #fff; }
 #annotationModal .btn-outline-secondary.active { background: #6c757d; color: #fff; }
+
+/* ═══ Clinical Annotation Mode ═══ */
+
+/* GT (ground truth) span highlights — yellow/orange */
+mark.hl-gt {
+    background: rgba(255, 193, 7, 0.35);
+    border-bottom: 2px solid #ffc107;
+    cursor: pointer;
+    padding: 1px 2px;
+    border-radius: 2px;
+}
+mark.hl-gt:hover { background: rgba(255, 193, 7, 0.55); }
+
+/* Likert scale highlight colors */
+mark.hl-likert-1 { background: rgba(25, 135, 84, 0.3); border-bottom: 2px solid #198754; cursor: pointer; }
+mark.hl-likert-2 { background: rgba(13, 202, 240, 0.25); border-bottom: 2px solid #0dcaf0; cursor: pointer; }
+mark.hl-likert-3 { background: rgba(255, 193, 7, 0.3); border-bottom: 2px solid #ffc107; cursor: pointer; }
+mark.hl-likert-4 { background: rgba(253, 126, 20, 0.3); border-bottom: 2px solid #fd7e14; cursor: pointer; }
+mark.hl-likert-5 { background: rgba(220, 53, 69, 0.3); border-bottom: 2px solid #dc3545; cursor: pointer; }
+
+/* Likert buttons in modal */
+.likert-btn {
+    font-size: 0.78rem;
+    padding: 6px 8px;
+    transition: all 0.15s;
+}
+.likert-btn small { font-size: 0.65rem; display: block; }
+.likert-btn.active[data-score="1"] { background: #198754 !important; color: #fff !important; border-color: #198754 !important; }
+.likert-btn.active[data-score="2"] { background: #0dcaf0 !important; color: #000 !important; border-color: #0dcaf0 !important; }
+.likert-btn.active[data-score="3"] { background: #ffc107 !important; color: #000 !important; border-color: #ffc107 !important; }
+.likert-btn.active[data-score="4"] { background: #fd7e14 !important; color: #fff !important; border-color: #fd7e14 !important; }
+.likert-btn.active[data-score="5"] { background: #dc3545 !important; color: #fff !important; border-color: #dc3545 !important; }
+.likert-btn.active[data-score="unsure"] { background: #6c757d !important; color: #fff !important; border-color: #6c757d !important; }
+
+.btn-outline-orange { color: #fd7e14; border-color: #fd7e14; }
+.btn-outline-orange:hover { background: #fd7e14; color: #fff; }
+
+/* Badge for orange (Likert 4) */
+.badge.bg-orange { background-color: #fd7e14 !important; }
+
+/* Clinical comment card */
+.comment-annotation-card { border-left: 3px solid #ffc107; }
+.clinical-comment-text {
+    font-size: 0.88rem;
+    line-height: 1.7;
+    padding: 10px;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    cursor: text;
+    white-space: pre-wrap;
+    word-break: break-word;
+}

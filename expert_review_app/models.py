@@ -60,5 +60,7 @@ class TextAnnotation(db.Model):
     end_offset = db.Column(db.Integer, nullable=False)
     highlighted_text = db.Column(db.Text, nullable=False)
     annotation_text = db.Column(db.Text, default="")
-    verdict = db.Column(db.String(20), nullable=True)        # correct / incorrect / not_sure
+    verdict = db.Column(db.String(20), nullable=True)        # likert 1-5 / unsure / correct / incorrect / not_sure
+    harm_reasoning = db.Column(db.Text, default="")
+    is_gt_span = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, server_default=db.func.now())

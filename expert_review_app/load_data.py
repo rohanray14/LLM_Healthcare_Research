@@ -111,11 +111,34 @@ def load_sample_annotations():
         # Build advice-style items from each comment annotation
         advice_items = []
         for c in info["comments"]:
+            # Compute GT span offsets within the comment body
+            gt_spans = []
+            if c["span_if_claim"]:
+                # Spans are separated by commas and pipes
+                raw_spans = c["span_if_claim"].replace("|", ",")
+                for span_text in raw_spans.split(","):
+                    span_text = span_text.strip()
+                    if not span_text:
+                        continue
+                    body = c["comment_body"]
+                    idx = body.find(span_text)
+                    if idx == -1:
+                        # Try case-insensitive
+                        idx = body.lower().find(span_text.lower())
+                    if idx >= 0:
+                        gt_spans.append({
+                            "text": span_text,
+                            "start": idx,
+                            "end": idx + len(span_text),
+                        })
+
             advice_items.append({
                 "advice": c["comment_body"],
+                "comment_id": c["comment_id"],
                 "agreement": c["l1_coding"],
                 "support": [s.strip() for s in c["span_if_claim"].split(",") if s.strip()] if c["span_if_claim"] else [],
                 "counterpoints": [c["nikil_notes"]] if c["nikil_notes"] else [],
+                "gt_spans": gt_spans,
             })
 
         key = (pid, SAMPLE_ANNOT_MODEL)

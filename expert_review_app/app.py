@@ -204,6 +204,8 @@ def review(post_id):
             "text": a.highlighted_text,
             "annotation": a.annotation_text,
             "verdict": a.verdict,
+            "harm_reasoning": a.harm_reasoning or "",
+            "is_gt_span": a.is_gt_span or False,
         })
 
     # Prev/next navigation (only within assigned posts)
@@ -312,6 +314,8 @@ def save_annotation(post_id):
         highlighted_text=data["text"],
         annotation_text=data.get("annotation", ""),
         verdict=data.get("verdict"),
+        harm_reasoning=data.get("harm_reasoning", ""),
+        is_gt_span=data.get("is_gt_span", False),
     )
     db.session.add(annot)
     db.session.commit()
@@ -440,12 +444,16 @@ def migrate_schema():
             db.session.execute(text("ALTER TABLE expert ADD COLUMN password_hash VARCHAR(256)"))
             db.session.commit()
 
-    # Add item_index to text_annotation table if missing
+    # Add missing columns to text_annotation table
     if "text_annotation" in inspector.get_table_names():
         cols = [c["name"] for c in inspector.get_columns("text_annotation")]
         if "item_index" not in cols:
             db.session.execute(text("ALTER TABLE text_annotation ADD COLUMN item_index INTEGER DEFAULT 0"))
-            db.session.commit()
+        if "harm_reasoning" not in cols:
+            db.session.execute(text("ALTER TABLE text_annotation ADD COLUMN harm_reasoning TEXT DEFAULT ''"))
+        if "is_gt_span" not in cols:
+            db.session.execute(text("ALTER TABLE text_annotation ADD COLUMN is_gt_span BOOLEAN DEFAULT 0"))
+        db.session.commit()
 
 
 def assign_sample_posts():
