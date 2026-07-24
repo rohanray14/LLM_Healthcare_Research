@@ -114,17 +114,94 @@ def load_sample_annotations():
             # Compute GT span offsets within the comment body
             gt_spans = []
             if c["span_if_claim"]:
+                import re
+                body = c["comment_body"]
+                # Strip markdown formatting for matching (e.g. **NOT** → NOT)
+                body_clean = re.sub(r'\*{1,2}(.+?)\*{1,2}', r'\1', body)
                 # Spans are separated by commas and pipes
                 raw_spans = c["span_if_claim"].replace("|", ",")
                 for span_text in raw_spans.split(","):
                     span_text = span_text.strip()
                     if not span_text:
                         continue
-                    body = c["comment_body"]
+                    # Try exact match first
                     idx = body.find(span_text)
                     if idx == -1:
                         # Try case-insensitive
                         idx = body.lower().find(span_text.lower())
+                    if idx == -1:
+                        # Try whitespace-normalized match (span may have single space where body has newlines)
+                        span_ws = re.sub(r'\s+', ' ', span_text).strip()
+                        for m in re.finditer(re.escape(span_ws[:30]), re.sub(r'\s+', ' ', body)):
+                            # Found start in normalized; map back to original
+                            norm_start = m.start()
+                            # Walk original body to find corresponding position
+                            orig_i = 0
+                            norm_i = 0
+                            while norm_i < norm_start and orig_i < len(body):
+                                if body[orig_i].isspace():
+                                    # consume all whitespace in original
+                                    while orig_i < len(body) and body[orig_i].isspace():
+                                        orig_i += 1
+                                    norm_i += 1  # one space in normalized
+                                else:
+                                    orig_i += 1
+                                    norm_i += 1
+                            # Now verify the full span matches from orig_i
+                            orig_chunk = re.sub(r'\s+', ' ', body[orig_i:orig_i + len(span_text) + 50])
+                            if orig_chunk.startswith(span_ws):
+                                # Find the end in original body
+                                span_end = orig_i
+                                ws_matched = 0
+                                while span_end < len(body) and ws_matched < len(span_ws):
+                                    if body[span_end].isspace():
+                                        while span_end < len(body) and body[span_end].isspace():
+                                            span_end += 1
+                                        ws_matched += 1  # counts as one space
+                                    else:
+                                        span_end += 1
+                                        ws_matched += 1
+                                gt_spans.append({
+                                    "text": body[orig_i:span_end],
+                                    "start": orig_i,
+                                    "end": span_end,
+                                })
+                                idx = orig_i  # mark as found
+                                break
+                    if idx == -1:
+                        # Try matching against markdown-stripped version
+                        idx_clean = body_clean.find(span_text)
+                        if idx_clean == -1:
+                            idx_clean = body_clean.lower().find(span_text.lower())
+                        if idx_clean >= 0:
+                            # Map offset back: find the corresponding position in original body
+                            # by matching surrounding context
+                            prefix = body_clean[:idx_clean]
+                            # Count how many extra markdown chars precede this position
+                            orig_pos = 0
+                            clean_pos = 0
+                            for ch in body:
+                                if clean_pos >= idx_clean:
+                                    break
+                                if body_clean[clean_pos:clean_pos+1] == ch:
+                                    clean_pos += 1
+                                orig_pos += 1
+                            idx = orig_pos
+                            # Find the end by scanning forward
+                            span_end = idx
+                            clean_matched = 0
+                            while span_end < len(body) and clean_matched < len(span_text):
+                                if body[span_end] in '*_':
+                                    span_end += 1
+                                    continue
+                                clean_matched += 1
+                                span_end += 1
+                            gt_spans.append({
+                                "text": body[idx:span_end],
+                                "start": idx,
+                                "end": span_end,
+                            })
+                            continue
                     if idx >= 0:
                         gt_spans.append({
                             "text": span_text,
