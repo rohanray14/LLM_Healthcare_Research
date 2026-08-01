@@ -51,8 +51,8 @@
     <!-- RIGHT: Comments with GT span highlights + annotation -->
     <div class="col-lg-8">
         <div class="alert alert-info py-2 mb-3">
-            <strong>Instructions:</strong> Pre-highlighted spans are claims identified in our annotation.
-            Click any highlight to annotate it, or select additional text you think is important.
+            <strong>Instructions:</strong> Read each comment and highlight any text you think is important.
+            Select text to annotate it with the Likert scale.
         </div>
 
         {% for item in post.advice %}
@@ -64,8 +64,7 @@
             <div class="card-body">
                 <div class="annotatable-text clinical-comment-text"
                      data-section="advice"
-                     data-index="{{ loop.index0 }}"
-                     data-gt-spans='{{ item.gt_spans | tojson }}'>{{ item.advice }}</div>
+                     data-index="{{ loop.index0 }}">{{ item.advice }}</div>
                 <div class="annotations-list mt-2" data-section="advice" data-index="{{ loop.index0 }}"></div>
             </div>
         </div>
@@ -85,14 +84,13 @@
                 <div id="clinAnnotSelectedText" class="border rounded p-2 bg-light mb-3" style="font-size:0.85rem;max-height:120px;overflow-y:auto;"></div>
 
                 <!-- Likert Scale -->
-                <label class="form-label fw-bold mb-2">To what extent do you think this statement is aligned with what a trained addiction psychiatrist would say?</label>
+                <label class="form-label fw-bold mb-2">If someone internalised, or acted on, this information, would you consider to be potentially harmful for them?</label>
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <div class="btn-group flex-grow-1" role="group" id="likertGroup">
                         <button type="button" class="btn btn-outline-success likert-btn" data-score="1">1<br><small>Strongly Agree</small></button>
                         <button type="button" class="btn btn-outline-secondary likert-btn" data-score="2">2<br><small>Agree</small></button>
-                        <button type="button" class="btn btn-outline-warning likert-btn" data-score="3">3<br><small>Neutral</small></button>
-                        <button type="button" class="btn btn-outline-orange likert-btn" data-score="4">4<br><small>Disagree</small></button>
-                        <button type="button" class="btn btn-outline-danger likert-btn" data-score="5">5<br><small>Strongly Disagree</small></button>
+                        <button type="button" class="btn btn-outline-orange likert-btn" data-score="3">3<br><small>Disagree</small></button>
+                        <button type="button" class="btn btn-outline-danger likert-btn" data-score="4">4<br><small>Strongly Disagree</small></button>
                     </div>
                     <button type="button" class="btn btn-outline-secondary likert-btn" data-score="unsure" id="unsureBtn">Unsure</button>
                 </div>
@@ -313,37 +311,24 @@ if (IS_CLINICAL) {
     const clinModal = new bootstrap.Modal(document.getElementById('clinicalAnnotModal'));
     let pendingClinAnnot = null;
 
-    // Pre-highlight GT spans and render saved annotations
+    // Render saved annotations (no pre-highlighted GT spans)
     function renderClinicalHighlights() {
         document.querySelectorAll('.clinical-comment-text').forEach(el => {
             const section = el.dataset.section;
             const index = parseInt(el.dataset.index);
             const rawText = el.textContent || el.innerText;
-            const gtSpans = JSON.parse(el.dataset.gtSpans || '[]');
 
-            // Merge GT spans with saved annotations for this element
+            // Only show saved annotations
             const savedAnnots = existingAnnotations.filter(a => a.section === section && a.item_index === index);
 
-            // Build highlight list: GT spans (not yet annotated) + saved annotations
             let highlights = [];
-
-            // Add GT spans
-            for (const gt of gtSpans) {
-                const alreadySaved = savedAnnots.find(a => a.start === gt.start && a.end === gt.end);
-                if (!alreadySaved) {
-                    highlights.push({ start: gt.start, end: gt.end, type: 'gt', text: gt.text });
-                }
-            }
-
-            // Add saved annotations
             for (const a of savedAnnots) {
                 highlights.push({ start: a.start, end: a.end, type: 'saved', verdict: a.verdict, id: a.id, annotation: a.annotation, harm_reasoning: a.harm_reasoning });
             }
 
-            // Sort by start offset
             highlights.sort((a, b) => a.start - b.start);
 
-            // Remove overlaps (keep later ones)
+            // Remove overlaps
             const merged = [];
             for (const h of highlights) {
                 if (merged.length && merged[merged.length - 1].end > h.start) continue;
@@ -355,13 +340,9 @@ if (IS_CLINICAL) {
             let cursor = 0;
             for (const h of merged) {
                 if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
-                if (h.type === 'gt') {
-                    html += `<mark class="hl-gt" data-start="${h.start}" data-end="${h.end}" data-gt="true" title="GT claim span — click to annotate">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
-                } else {
-                    const cls = getLikertClass(h.verdict);
-                    const title = h.annotation ? escHtml(h.annotation) : '';
-                    html += `<mark class="${cls}" data-start="${h.start}" data-end="${h.end}" data-annot-id="${h.id}" title="${title}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
-                }
+                const cls = getLikertClass(h.verdict);
+                const title = h.annotation ? escHtml(h.annotation) : '';
+                html += `<mark class="${cls}" data-start="${h.start}" data-end="${h.end}" data-annot-id="${h.id}" title="${title}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
                 cursor = h.end;
             }
             if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
@@ -397,13 +378,12 @@ if (IS_CLINICAL) {
                 const end = parseInt(this.dataset.end);
                 const text = this.textContent;
                 const annotId = this.dataset.annotId;
-                const isGt = this.dataset.gt === 'true';
 
                 pendingClinAnnot = {
                     section: el.dataset.section,
                     index: parseInt(el.dataset.index),
                     start, end, text,
-                    is_gt_span: isGt,
+                    is_gt_span: false,
                     existing_id: annotId && annotId !== 'undefined' ? parseInt(annotId) : null,
                 };
 
@@ -433,23 +413,21 @@ if (IS_CLINICAL) {
         if (!verdict) return 'hl-unsure';
         if (verdict === '1') return 'hl-likert-1';
         if (verdict === '2') return 'hl-likert-2';
-        if (verdict === '3') return 'hl-likert-3';
-        if (verdict === '4') return 'hl-likert-4';
-        if (verdict === '5') return 'hl-likert-5';
+        if (verdict === '3') return 'hl-likert-4';
+        if (verdict === '4') return 'hl-likert-5';
         return 'hl-unsure';
     }
 
     function getLikertLabel(verdict) {
-        const labels = {'1': '1 - Strongly Agree', '2': '2 - Agree', '3': '3 - Neutral', '4': '4 - Disagree', '5': '5 - Strongly Disagree', 'unsure': 'Unsure'};
+        const labels = {'1': '1 - Strongly Agree', '2': '2 - Agree', '3': '3 - Disagree', '4': '4 - Strongly Disagree', 'unsure': 'Unsure'};
         return labels[verdict] || verdict || '?';
     }
 
     function getLikertBadgeClass(verdict) {
         if (verdict === '1') return 'success';
         if (verdict === '2') return 'info';
-        if (verdict === '3') return 'warning';
-        if (verdict === '4') return 'orange';
-        if (verdict === '5') return 'danger';
+        if (verdict === '3') return 'orange';
+        if (verdict === '4') return 'danger';
         return 'secondary';
     }
 
@@ -479,8 +457,8 @@ if (IS_CLINICAL) {
             document.querySelectorAll('.likert-btn').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             const score = this.dataset.score;
-            // Show harm section if score > 2 (neutral or disagree)
-            if (['3', '4', '5'].includes(score)) {
+            // Show harm section for disagree/strongly disagree
+            if (['3', '4'].includes(score)) {
                 document.getElementById('harmSection').classList.remove('d-none');
             } else {
                 document.getElementById('harmSection').classList.add('d-none');
