@@ -1,23 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Review: {{ post.title }}{% endblock %}
+{% block title %}Annotate: {{ post.title }}{% endblock %}
 {% block content %}
 
 <!-- Nav -->
 <div class="d-flex justify-content-between mb-3">
     {% if prev_id %}
-    <a href="{{ url_for('review', post_id=prev_id, model=current_model) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>
+    <a href="{{ url_for('review', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>
     {% else %}<span></span>{% endif %}
     <div class="d-flex align-items-center gap-2">
-        <a href="{{ url_for('dashboard', model=current_model) }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
-        <select id="modelSelect" class="form-select form-select-sm" style="width:auto;">
-            {% for m in models %}
-            <option value="{{ m }}" {% if m == current_model %}selected{% endif %}>{{ m }}</option>
-            {% endfor %}
-        </select>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
         <span id="saveStatus"><small class="text-muted">Ready</small></span>
     </div>
     {% if next_id %}
-    <a href="{{ url_for('review', post_id=next_id, model=current_model) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
+    <a href="{{ url_for('review', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
     {% else %}<span></span>{% endif %}
 </div>
 
@@ -32,11 +27,6 @@
     </div>
 </div>
 
-{% if current_model == 'comment_annotations' %}
-{# ═══════════════════════════════════════════════════════════════════ #}
-{# CLINICAL ANNOTATION MODE                                          #}
-{# ═══════════════════════════════════════════════════════════════════ #}
-
 <div class="row">
     <!-- LEFT: Original post body -->
     <div class="col-lg-4">
@@ -48,7 +38,7 @@
         </div>
     </div>
 
-    <!-- RIGHT: Comments with GT span highlights + annotation -->
+    <!-- RIGHT: Comments with annotation -->
     <div class="col-lg-8">
         <div class="alert alert-info py-2 mb-3">
             <strong>Instructions:</strong> Read each comment and highlight any text you think is important.
@@ -116,186 +106,14 @@
     </div>
 </div>
 
-{% else %}
-{# ═══════════════════════════════════════════════════════════════════ #}
-{# STANDARD LLM OUTPUT REVIEW MODE (unchanged)                       #}
-{# ═══════════════════════════════════════════════════════════════════ #}
-
-<div class="row">
-    <!-- LEFT: Original post + comments -->
-    <div class="col-lg-4">
-        <div class="card sticky-panel mb-3">
-            <div class="card-header"><h6 class="mb-0">Original Reddit Post</h6></div>
-            <div class="card-body source-panel">
-                <div class="post-body-text border rounded p-2 bg-light mb-3" style="max-height:200px;overflow-y:auto;font-size:0.85rem;">
-                    {{ comment_data.get('body', '(No body)') }}
-                </div>
-                <h6>Comments ({{ comment_data.get('comments', [])|length }})</h6>
-                {% for c in comment_data.get('comments', []) %}
-                <div class="comment-card" id="comment-C{{ loop.index }}">
-                    <div class="comment-label">C{{ loop.index }}</div>
-                    <div class="comment-text">{{ c }}</div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-
-    <!-- RIGHT: LLM output sections -->
-    <div class="col-lg-8">
-        <!-- 1. SUMMARY -->
-        <div class="card mb-3 section-card" data-section="summary">
-            <div class="card-header d-flex justify-content-between">
-                <h6 class="mb-0">1. Summary of Post and Details</h6>
-                <small class="text-muted">Highlight text to annotate</small>
-            </div>
-            <div class="card-body">
-                <div class="annotatable-text" data-section="summary" data-index="0">{{ post.summary }}</div>
-                <div class="annotations-list mt-2" data-section="summary"></div>
-            </div>
-        </div>
-
-        <!-- 2. UNIQUE ADVICE -->
-        <div class="card mb-3 section-card" data-section="advice">
-            <div class="card-header"><h6 class="mb-0">2. Unique Advice ({{ post.advice|length }} action items)</h6></div>
-            <div class="card-body">
-                {% for item in post.advice %}
-                {% set rev = existing_reviews.get(('advice', loop.index0)) %}
-                <div class="review-item" data-section="advice" data-index="{{ loop.index0 }}">
-                    <div class="review-item-content">
-                        <div class="review-item-text annotatable-text" data-section="advice" data-index="{{ loop.index0 }}">
-                            <strong>{{ item.advice }}</strong>
-                        </div>
-                        <div class="review-item-meta">
-                            <span class="badge bg-{{ 'success' if item.agreement == 'high' else ('warning text-dark' if item.agreement == 'mixed' else 'danger') }}">{{ item.agreement }}</span>
-                            Support: {{ item.support | join(', ') }}
-                            {% if item.counterpoints %} | Counter: {{ item.counterpoints | join(', ') }}{% endif %}
-                        </div>
-                    </div>
-                    <div class="verdict-controls">
-                        <button class="btn btn-sm verdict-btn correct {% if rev and rev.verdict == 'correct' %}active{% endif %}" data-verdict="correct">Correct</button>
-                        <button class="btn btn-sm verdict-btn incorrect {% if rev and rev.verdict == 'incorrect' %}active{% endif %}" data-verdict="incorrect">Incorrect</button>
-                        <button class="btn btn-sm verdict-btn not-sure {% if rev and rev.verdict == 'not_sure' %}active{% endif %}" data-verdict="not_sure">Not Sure</button>
-                        <button class="btn btn-sm note-toggle-btn {% if rev and rev.note %}has-note{% endif %}" title="Add/view note">&#9998;</button>
-                    </div>
-                    <div class="note-area {% if not (rev and rev.note) %}d-none{% endif %}">
-                        <textarea class="form-control form-control-sm verdict-note" rows="2" placeholder="Add a note...">{{ rev.note if rev else '' }}</textarea>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <!-- 3. DIVERGENCES -->
-        <div class="card mb-3 section-card" data-section="divergence">
-            <div class="card-header"><h6 class="mb-0">3. Divergences ({{ post.divergences|length }} action items)</h6></div>
-            <div class="card-body">
-                {% for item in post.divergences %}
-                {% set rev = existing_reviews.get(('divergence', loop.index0)) %}
-                <div class="review-item" data-section="divergence" data-index="{{ loop.index0 }}">
-                    <div class="review-item-content">
-                        <div class="review-item-text annotatable-text" data-section="divergence" data-index="{{ loop.index0 }}">
-                            <strong>{{ item.topic }}</strong><br>
-                            <span class="text-primary">View A:</span> {{ item.view_a }}
-                            <small class="text-muted">({{ item.evidence_a | join(', ') }})</small><br>
-                            <span class="text-danger">View B:</span> {{ item.view_b }}
-                            <small class="text-muted">({{ item.evidence_b | join(', ') }})</small>
-                        </div>
-                    </div>
-                    <div class="verdict-controls">
-                        <button class="btn btn-sm verdict-btn correct {% if rev and rev.verdict == 'correct' %}active{% endif %}" data-verdict="correct">Correct</button>
-                        <button class="btn btn-sm verdict-btn incorrect {% if rev and rev.verdict == 'incorrect' %}active{% endif %}" data-verdict="incorrect">Incorrect</button>
-                        <button class="btn btn-sm verdict-btn not-sure {% if rev and rev.verdict == 'not_sure' %}active{% endif %}" data-verdict="not_sure">Not Sure</button>
-                        <button class="btn btn-sm note-toggle-btn {% if rev and rev.note %}has-note{% endif %}" title="Add/view note">&#9998;</button>
-                    </div>
-                    <div class="note-area {% if not (rev and rev.note) %}d-none{% endif %}">
-                        <textarea class="form-control form-control-sm verdict-note" rows="2" placeholder="Add a note...">{{ rev.note if rev else '' }}</textarea>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <!-- 4. CLINICALLY RELEVANT NOTES -->
-        <div class="card mb-3 section-card" data-section="clinical">
-            <div class="card-header"><h6 class="mb-0">4. Clinically Relevant Notes ({{ post.clinical_notes|length }} action items)</h6></div>
-            <div class="card-body">
-                {% for item in post.clinical_notes %}
-                {% set rev = existing_reviews.get(('clinical', loop.index0)) %}
-                <div class="review-item" data-section="clinical" data-index="{{ loop.index0 }}">
-                    <div class="review-item-content">
-                        <div class="review-item-text annotatable-text" data-section="clinical" data-index="{{ loop.index0 }}">{{ item }}</div>
-                    </div>
-                    <div class="verdict-controls">
-                        <button class="btn btn-sm verdict-btn correct {% if rev and rev.verdict == 'correct' %}active{% endif %}" data-verdict="correct">Correct</button>
-                        <button class="btn btn-sm verdict-btn incorrect {% if rev and rev.verdict == 'incorrect' %}active{% endif %}" data-verdict="incorrect">Incorrect</button>
-                        <button class="btn btn-sm verdict-btn not-sure {% if rev and rev.verdict == 'not_sure' %}active{% endif %}" data-verdict="not_sure">Not Sure</button>
-                        <button class="btn btn-sm note-toggle-btn {% if rev and rev.note %}has-note{% endif %}" title="Add/view note">&#9998;</button>
-                    </div>
-                    <div class="note-area {% if not (rev and rev.note) %}d-none{% endif %}">
-                        <textarea class="form-control form-control-sm verdict-note" rows="2" placeholder="Add a note...">{{ rev.note if rev else '' }}</textarea>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <!-- 5. DATA QUALITY -->
-        <div class="card mb-3 section-card" data-section="quality">
-            <div class="card-header d-flex justify-content-between">
-                <h6 class="mb-0">5. Data Quality</h6>
-                <small class="text-muted">Highlight text to annotate</small>
-            </div>
-            <div class="card-body">
-                <div class="annotatable-text" data-section="quality" data-index="0">{{ post.data_quality }}</div>
-                <div class="annotations-list mt-2" data-section="quality"></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Standard Annotation Modal -->
-<div class="modal fade" id="annotationModal" tabindex="-1">
-    <div class="modal-dialog modal-sm">
-        <div class="modal-content">
-            <div class="modal-header py-2">
-                <h6 class="modal-title">Annotate Selection</h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="annotSelectedText" class="border rounded p-2 bg-light mb-2" style="font-size:0.85rem;max-height:100px;overflow-y:auto;"></div>
-                <div class="mb-2">
-                    <div class="btn-group w-100" role="group">
-                        <button type="button" class="btn btn-sm btn-outline-success annot-verdict-btn" data-verdict="correct">Correct</button>
-                        <button type="button" class="btn btn-sm btn-outline-danger annot-verdict-btn" data-verdict="incorrect">Incorrect</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary annot-verdict-btn" data-verdict="not_sure">Not Sure</button>
-                    </div>
-                </div>
-                <textarea id="annotNote" class="form-control form-control-sm" rows="2" placeholder="Annotation note..."></textarea>
-            </div>
-            <div class="modal-footer py-1">
-                <button type="button" class="btn btn-sm btn-primary" id="saveAnnotBtn">Save</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-{% endif %}
-
 {% endblock %}
 
 {% block scripts %}
 <script>
 const POST_ID = "{{ post.post_id }}";
 const MODEL = "{{ current_model }}";
-const IS_CLINICAL = MODEL === "comment_annotations";
 const statusEl = document.getElementById('saveStatus');
 let existingAnnotations = {{ existing_annotations | tojson }};
-
-// ── Model switcher ──
-document.getElementById('modelSelect').addEventListener('change', function() {
-    window.location.href = `/review/${POST_ID}?model=${this.value}`;
-});
 
 function escHtml(t) {
     const d = document.createElement('div');
@@ -303,396 +121,221 @@ function escHtml(t) {
     return d.innerHTML;
 }
 
-if (IS_CLINICAL) {
-    // ═══════════════════════════════════════════════════════
-    // CLINICAL ANNOTATION MODE
-    // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// CLINICAL ANNOTATION MODE
+// ═══════════════════════════════════════════════════════
 
-    const clinModal = new bootstrap.Modal(document.getElementById('clinicalAnnotModal'));
-    let pendingClinAnnot = null;
+const clinModal = new bootstrap.Modal(document.getElementById('clinicalAnnotModal'));
+let pendingClinAnnot = null;
 
-    // Render saved annotations (no pre-highlighted GT spans)
-    function renderClinicalHighlights() {
-        document.querySelectorAll('.clinical-comment-text').forEach(el => {
-            const section = el.dataset.section;
-            const index = parseInt(el.dataset.index);
-            const rawText = el.textContent || el.innerText;
+// Render saved annotations
+function renderClinicalHighlights() {
+    document.querySelectorAll('.clinical-comment-text').forEach(el => {
+        const section = el.dataset.section;
+        const index = parseInt(el.dataset.index);
+        const rawText = el.textContent || el.innerText;
 
-            // Only show saved annotations
-            const savedAnnots = existingAnnotations.filter(a => a.section === section && a.item_index === index);
+        const savedAnnots = existingAnnotations.filter(a => a.section === section && a.item_index === index);
 
-            let highlights = [];
-            for (const a of savedAnnots) {
-                highlights.push({ start: a.start, end: a.end, type: 'saved', verdict: a.verdict, id: a.id, annotation: a.annotation, harm_reasoning: a.harm_reasoning });
-            }
-
-            highlights.sort((a, b) => a.start - b.start);
-
-            // Remove overlaps
-            const merged = [];
-            for (const h of highlights) {
-                if (merged.length && merged[merged.length - 1].end > h.start) continue;
-                merged.push(h);
-            }
-
-            // Build HTML
-            let html = '';
-            let cursor = 0;
-            for (const h of merged) {
-                if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
-                const cls = getLikertClass(h.verdict);
-                const title = h.annotation ? escHtml(h.annotation) : '';
-                html += `<mark class="${cls}" data-start="${h.start}" data-end="${h.end}" data-annot-id="${h.id}" title="${title}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
-                cursor = h.end;
-            }
-            if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
-            el.innerHTML = html;
-        });
-
-        // Render annotation summaries below each comment
-        document.querySelectorAll('.annotations-list').forEach(el => { el.innerHTML = ''; });
-        existingAnnotations.forEach(a => {
-            const container = document.querySelector(`.annotations-list[data-section="${a.section}"][data-index="${a.item_index}"]`);
-            if (!container) return;
-            const label = getLikertLabel(a.verdict);
-            const cls = getLikertBadgeClass(a.verdict);
-            const div = document.createElement('div');
-            div.className = 'annotation-tag';
-            div.innerHTML = `
-                <span class="badge bg-${cls} me-1">${label}</span>
-                <em>"${escHtml(a.text.substring(0, 80))}${a.text.length > 80 ? '...' : ''}"</em>
-                ${a.annotation ? ` — ${escHtml(a.annotation)}` : ''}
-                ${a.harm_reasoning ? ` <span class="badge bg-danger ms-1">Harm noted</span>` : ''}
-                <button class="btn btn-sm btn-link text-danger p-0 ms-2 delete-annot" data-id="${a.id}">&times;</button>
-            `;
-            container.appendChild(div);
-        });
-
-        // Attach click handlers for highlights
-        document.querySelectorAll('.clinical-comment-text mark').forEach(mark => {
-            mark.style.cursor = 'pointer';
-            mark.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const el = this.closest('.clinical-comment-text');
-                const start = parseInt(this.dataset.start);
-                const end = parseInt(this.dataset.end);
-                const text = this.textContent;
-                const annotId = this.dataset.annotId;
-
-                pendingClinAnnot = {
-                    section: el.dataset.section,
-                    index: parseInt(el.dataset.index),
-                    start, end, text,
-                    is_gt_span: false,
-                    existing_id: annotId && annotId !== 'undefined' ? parseInt(annotId) : null,
-                };
-
-                // Pre-fill modal if existing annotation
-                const existing = annotId ? existingAnnotations.find(a => a.id == annotId) : null;
-                openClinicalModal(text, existing);
-            });
-        });
-
-        // Delete buttons
-        document.querySelectorAll('.delete-annot').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const id = this.dataset.id;
-                fetch(`/api/annotation/${id}/delete`, { method: 'POST' })
-                .then(r => r.json())
-                .then(d => {
-                    if (d.ok) {
-                        existingAnnotations = existingAnnotations.filter(a => a.id != id);
-                        renderClinicalHighlights();
-                    }
-                });
-            });
-        });
-    }
-
-    function getLikertClass(verdict) {
-        if (!verdict) return 'hl-unsure';
-        if (verdict === '1') return 'hl-likert-1';
-        if (verdict === '2') return 'hl-likert-2';
-        if (verdict === '3') return 'hl-likert-4';
-        if (verdict === '4') return 'hl-likert-5';
-        return 'hl-unsure';
-    }
-
-    function getLikertLabel(verdict) {
-        const labels = {'1': '1 - Strongly Agree', '2': '2 - Agree', '3': '3 - Disagree', '4': '4 - Strongly Disagree', 'unsure': 'Unsure'};
-        return labels[verdict] || verdict || '?';
-    }
-
-    function getLikertBadgeClass(verdict) {
-        if (verdict === '1') return 'success';
-        if (verdict === '2') return 'info';
-        if (verdict === '3') return 'orange';
-        if (verdict === '4') return 'danger';
-        return 'secondary';
-    }
-
-    function openClinicalModal(text, existing) {
-        document.getElementById('clinAnnotSelectedText').textContent = text;
-        document.querySelectorAll('.likert-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById('clinAnnotComment').value = '';
-        document.getElementById('harmReasoning').value = '';
-        document.getElementById('harmSection').classList.add('d-none');
-
-        if (existing) {
-            const scoreBtn = document.querySelector(`.likert-btn[data-score="${existing.verdict}"]`);
-            if (scoreBtn) scoreBtn.classList.add('active');
-            document.getElementById('clinAnnotComment').value = existing.annotation || '';
-            if (existing.harm_reasoning) {
-                document.getElementById('harmReasoning').value = existing.harm_reasoning;
-                document.getElementById('harmSection').classList.remove('d-none');
-            }
+        let highlights = [];
+        for (const a of savedAnnots) {
+            highlights.push({ start: a.start, end: a.end, type: 'saved', verdict: a.verdict, id: a.id, annotation: a.annotation, harm_reasoning: a.harm_reasoning });
         }
 
-        clinModal.show();
-    }
+        highlights.sort((a, b) => a.start - b.start);
 
-    // Likert button handlers
-    document.querySelectorAll('.likert-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.likert-btn').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            const score = this.dataset.score;
-            // Show harm section for disagree/strongly disagree
-            if (['3', '4'].includes(score)) {
-                document.getElementById('harmSection').classList.remove('d-none');
-            } else {
-                document.getElementById('harmSection').classList.add('d-none');
-                document.getElementById('harmReasoning').value = '';
-            }
-        });
+        // Remove overlaps
+        const merged = [];
+        for (const h of highlights) {
+            if (merged.length && merged[merged.length - 1].end > h.start) continue;
+            merged.push(h);
+        }
+
+        // Build HTML
+        let html = '';
+        let cursor = 0;
+        for (const h of merged) {
+            if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
+            const cls = getLikertClass(h.verdict);
+            const title = h.annotation ? escHtml(h.annotation) : '';
+            html += `<mark class="${cls}" data-start="${h.start}" data-end="${h.end}" data-annot-id="${h.id}" title="${title}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
+            cursor = h.end;
+        }
+        if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
+        el.innerHTML = html;
     });
 
-    // Allow text selection on comment text for new highlights
-    document.querySelectorAll('.clinical-comment-text').forEach(el => {
-        el.addEventListener('mouseup', function(e) {
-            if (e.target.tagName === 'MARK') return; // handled by click
-            const sel = window.getSelection();
-            const text = sel.toString().trim();
-            if (!text || text.length < 3) return;
+    // Render annotation summaries below each comment
+    document.querySelectorAll('.annotations-list').forEach(el => { el.innerHTML = ''; });
+    existingAnnotations.forEach(a => {
+        const container = document.querySelector(`.annotations-list[data-section="${a.section}"][data-index="${a.item_index}"]`);
+        if (!container) return;
+        const label = getLikertLabel(a.verdict);
+        const cls = getLikertBadgeClass(a.verdict);
+        const div = document.createElement('div');
+        div.className = 'annotation-tag';
+        div.innerHTML = `
+            <span class="badge bg-${cls} me-1">${label}</span>
+            <em>"${escHtml(a.text.substring(0, 80))}${a.text.length > 80 ? '...' : ''}"</em>
+            ${a.annotation ? ` — ${escHtml(a.annotation)}` : ''}
+            ${a.harm_reasoning ? ` <span class="badge bg-danger ms-1">Harm noted</span>` : ''}
+            <button class="btn btn-sm btn-link text-danger p-0 ms-2 delete-annot" data-id="${a.id}">&times;</button>
+        `;
+        container.appendChild(div);
+    });
 
-            const range = sel.getRangeAt(0);
-            const preRange = document.createRange();
-            preRange.selectNodeContents(this);
-            preRange.setEnd(range.startContainer, range.startOffset);
-            const start = preRange.toString().length;
-            const end = start + text.length;
+    // Attach click handlers for highlights
+    document.querySelectorAll('.clinical-comment-text mark').forEach(mark => {
+        mark.style.cursor = 'pointer';
+        mark.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const el = this.closest('.clinical-comment-text');
+            const start = parseInt(this.dataset.start);
+            const end = parseInt(this.dataset.end);
+            const text = this.textContent;
+            const annotId = this.dataset.annotId;
 
             pendingClinAnnot = {
-                section: this.dataset.section,
-                index: parseInt(this.dataset.index),
+                section: el.dataset.section,
+                index: parseInt(el.dataset.index),
                 start, end, text,
                 is_gt_span: false,
-                existing_id: null,
+                existing_id: annotId && annotId !== 'undefined' ? parseInt(annotId) : null,
             };
 
-            openClinicalModal(text, null);
+            const existing = annotId ? existingAnnotations.find(a => a.id == annotId) : null;
+            openClinicalModal(text, existing);
         });
     });
 
-    // Save clinical annotation
-    document.getElementById('saveClinAnnotBtn').addEventListener('click', function() {
-        if (!pendingClinAnnot) return;
-        const activeBtn = document.querySelector('.likert-btn.active');
-        if (!activeBtn) {
-            alert('Please select a Likert score or Unsure.');
-            return;
-        }
-
-        const verdict = activeBtn.dataset.score;
-        const annotation = document.getElementById('clinAnnotComment').value;
-        const harmReasoning = document.getElementById('harmReasoning').value;
-
-        // If editing existing, delete old first
-        const saveNew = () => {
-            fetch(`/api/annotation/${POST_ID}/save`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model_name: MODEL,
-                    section: pendingClinAnnot.section,
-                    item_index: pendingClinAnnot.index,
-                    start: pendingClinAnnot.start,
-                    end: pendingClinAnnot.end,
-                    text: pendingClinAnnot.text,
-                    annotation: annotation,
-                    verdict: verdict,
-                    harm_reasoning: harmReasoning,
-                    is_gt_span: pendingClinAnnot.is_gt_span,
-                }),
-            })
+    // Delete buttons
+    document.querySelectorAll('.delete-annot').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            fetch(`/api/annotation/${id}/delete`, { method: 'POST' })
             .then(r => r.json())
             .then(d => {
                 if (d.ok) {
-                    if (d.removed_ids && d.removed_ids.length) {
-                        existingAnnotations = existingAnnotations.filter(a => !d.removed_ids.includes(a.id));
-                    }
-                    existingAnnotations.push({
-                        id: d.id,
-                        section: pendingClinAnnot.section,
-                        item_index: pendingClinAnnot.index,
-                        start: pendingClinAnnot.start,
-                        end: pendingClinAnnot.end,
-                        text: pendingClinAnnot.text,
-                        annotation: annotation,
-                        verdict: verdict,
-                        harm_reasoning: harmReasoning,
-                        is_gt_span: pendingClinAnnot.is_gt_span,
-                    });
+                    existingAnnotations = existingAnnotations.filter(a => a.id != id);
                     renderClinicalHighlights();
-                    clinModal.hide();
-                    statusEl.innerHTML = '<small class="text-success">Annotation saved</small>';
                 }
             });
+        });
+    });
+}
+
+function getLikertClass(verdict) {
+    if (!verdict) return 'hl-unsure';
+    if (verdict === '1') return 'hl-likert-1';
+    if (verdict === '2') return 'hl-likert-2';
+    if (verdict === '3') return 'hl-likert-4';
+    if (verdict === '4') return 'hl-likert-5';
+    return 'hl-unsure';
+}
+
+function getLikertLabel(verdict) {
+    const labels = {'1': '1 - Strongly Agree', '2': '2 - Agree', '3': '3 - Disagree', '4': '4 - Strongly Disagree', 'unsure': 'Unsure'};
+    return labels[verdict] || verdict || '?';
+}
+
+function getLikertBadgeClass(verdict) {
+    if (verdict === '1') return 'success';
+    if (verdict === '2') return 'info';
+    if (verdict === '3') return 'orange';
+    if (verdict === '4') return 'danger';
+    return 'secondary';
+}
+
+function openClinicalModal(text, existing) {
+    document.getElementById('clinAnnotSelectedText').textContent = text;
+    document.querySelectorAll('.likert-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('clinAnnotComment').value = '';
+    document.getElementById('harmReasoning').value = '';
+    document.getElementById('harmSection').classList.add('d-none');
+
+    if (existing) {
+        const scoreBtn = document.querySelector(`.likert-btn[data-score="${existing.verdict}"]`);
+        if (scoreBtn) scoreBtn.classList.add('active');
+        document.getElementById('clinAnnotComment').value = existing.annotation || '';
+        if (existing.harm_reasoning) {
+            document.getElementById('harmReasoning').value = existing.harm_reasoning;
+            document.getElementById('harmSection').classList.remove('d-none');
+        }
+    }
+
+    clinModal.show();
+}
+
+// Likert button handlers
+document.querySelectorAll('.likert-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.likert-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        const score = this.dataset.score;
+        if (['3', '4'].includes(score)) {
+            document.getElementById('harmSection').classList.remove('d-none');
+        } else {
+            document.getElementById('harmSection').classList.add('d-none');
+            document.getElementById('harmReasoning').value = '';
+        }
+    });
+});
+
+// Allow text selection on comment text for new highlights
+document.querySelectorAll('.clinical-comment-text').forEach(el => {
+    el.addEventListener('mouseup', function(e) {
+        if (e.target.tagName === 'MARK') return;
+        const sel = window.getSelection();
+        const text = sel.toString().trim();
+        if (!text || text.length < 3) return;
+
+        const range = sel.getRangeAt(0);
+        const preRange = document.createRange();
+        preRange.selectNodeContents(this);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        const start = preRange.toString().length;
+        const end = start + text.length;
+
+        pendingClinAnnot = {
+            section: this.dataset.section,
+            index: parseInt(this.dataset.index),
+            start, end, text,
+            is_gt_span: false,
+            existing_id: null,
         };
 
-        if (pendingClinAnnot.existing_id) {
-            fetch(`/api/annotation/${pendingClinAnnot.existing_id}/delete`, { method: 'POST' })
-            .then(r => r.json())
-            .then(d => {
-                existingAnnotations = existingAnnotations.filter(a => a.id != pendingClinAnnot.existing_id);
-                saveNew();
-            });
-        } else {
-            saveNew();
-        }
+        openClinicalModal(text, null);
     });
+});
 
-    // Initial render
-    renderClinicalHighlights();
-
-} else {
-    // ═══════════════════════════════════════════════════════
-    // STANDARD LLM REVIEW MODE
-    // ═══════════════════════════════════════════════════════
-
-    // Comment reference highlighting
-    document.querySelectorAll('.review-item-text, .annotatable-text').forEach(el => {
-        el.innerHTML = el.innerHTML.replace(/\b(C\d+)\b/g, '<a href="#comment-$1" class="comment-ref">$1</a>');
-    });
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('comment-ref')) {
-            e.preventDefault();
-            const target = document.getElementById(e.target.textContent.trim());
-            if (target) {
-                document.querySelectorAll('.comment-card').forEach(c => c.classList.remove('highlight'));
-                target.classList.add('highlight');
-                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                setTimeout(() => target.classList.remove('highlight'), 3000);
-            }
-        }
-    });
-
-    // Verdict buttons
-    document.querySelectorAll('.verdict-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const item = this.closest('.review-item');
-            const wasActive = this.classList.contains('active');
-            item.querySelectorAll('.verdict-btn').forEach(b => b.classList.remove('active'));
-            if (!wasActive) this.classList.add('active');
-            scheduleAutoSave();
-        });
-    });
-
-    // Note toggle
-    document.querySelectorAll('.note-toggle-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const item = this.closest('.review-item');
-            const noteArea = item.querySelector('.note-area');
-            noteArea.classList.toggle('d-none');
-            if (!noteArea.classList.contains('d-none')) noteArea.querySelector('.verdict-note').focus();
-        });
-    });
-
-    document.querySelectorAll('.verdict-note').forEach(input => {
-        let t;
-        input.addEventListener('input', function() {
-            clearTimeout(t);
-            const item = this.closest('.review-item');
-            const toggleBtn = item.querySelector('.note-toggle-btn');
-            toggleBtn.classList.toggle('has-note', !!this.value.trim());
-            t = setTimeout(scheduleAutoSave, 800);
-        });
-    });
-
-    let saveTimer = null;
-    function scheduleAutoSave() {
-        clearTimeout(saveTimer);
-        statusEl.innerHTML = '<small class="text-warning">Unsaved...</small>';
-        saveTimer = setTimeout(doSave, 600);
+// Save clinical annotation
+document.getElementById('saveClinAnnotBtn').addEventListener('click', function() {
+    if (!pendingClinAnnot) return;
+    const activeBtn = document.querySelector('.likert-btn.active');
+    if (!activeBtn) {
+        alert('Please select a Likert score or Unsure.');
+        return;
     }
 
-    function doSave() {
-        const reviews = [];
-        document.querySelectorAll('.review-item').forEach(item => {
-            const activeBtn = item.querySelector('.verdict-btn.active');
-            reviews.push({
-                section: item.dataset.section,
-                item_index: parseInt(item.dataset.index),
-                verdict: activeBtn ? activeBtn.dataset.verdict : null,
-                note: item.querySelector('.verdict-note')?.value || '',
-            });
-        });
-        statusEl.innerHTML = '<small class="text-muted">Saving...</small>';
-        fetch(`/api/review/${POST_ID}/save`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model_name: MODEL, reviews }),
-        })
-        .then(r => r.json())
-        .then(d => { if (d.ok) statusEl.innerHTML = '<small class="text-success">Saved</small>'; })
-        .catch(() => { statusEl.innerHTML = '<small class="text-danger">Save failed</small>'; });
-    }
+    const verdict = activeBtn.dataset.score;
+    const annotation = document.getElementById('clinAnnotComment').value;
+    const harmReasoning = document.getElementById('harmReasoning').value;
 
-    // Text selection → annotation
-    let pendingAnnot = null;
-    const annotModal = new bootstrap.Modal(document.getElementById('annotationModal'));
-
-    document.querySelectorAll('.annotatable-text').forEach(el => {
-        el.addEventListener('mouseup', function(e) {
-            const sel = window.getSelection();
-            const text = sel.toString().trim();
-            if (!text || text.length < 3) return;
-            const range = sel.getRangeAt(0);
-            const preRange = document.createRange();
-            preRange.selectNodeContents(this);
-            preRange.setEnd(range.startContainer, range.startOffset);
-            const start = preRange.toString().length;
-            const end = start + text.length;
-            pendingAnnot = { section: this.dataset.section, index: parseInt(this.dataset.index), start, end, text };
-            document.getElementById('annotSelectedText').textContent = text;
-            document.getElementById('annotNote').value = '';
-            document.querySelectorAll('.annot-verdict-btn').forEach(b => b.classList.remove('active'));
-            annotModal.show();
-        });
-    });
-
-    document.querySelectorAll('.annot-verdict-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.annot-verdict-btn').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-        });
-    });
-
-    document.getElementById('saveAnnotBtn').addEventListener('click', function() {
-        if (!pendingAnnot) return;
-        const verdictBtn = document.querySelector('.annot-verdict-btn.active');
+    const saveNew = () => {
         fetch(`/api/annotation/${POST_ID}/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model_name: MODEL,
-                section: pendingAnnot.section,
-                item_index: pendingAnnot.index,
-                start: pendingAnnot.start,
-                end: pendingAnnot.end,
-                text: pendingAnnot.text,
-                annotation: document.getElementById('annotNote').value,
-                verdict: verdictBtn ? verdictBtn.dataset.verdict : null,
+                section: pendingClinAnnot.section,
+                item_index: pendingClinAnnot.index,
+                start: pendingClinAnnot.start,
+                end: pendingClinAnnot.end,
+                text: pendingClinAnnot.text,
+                annotation: annotation,
+                verdict: verdict,
+                harm_reasoning: harmReasoning,
+                is_gt_span: pendingClinAnnot.is_gt_span,
             }),
         })
         .then(r => r.json())
@@ -702,70 +345,37 @@ if (IS_CLINICAL) {
                     existingAnnotations = existingAnnotations.filter(a => !d.removed_ids.includes(a.id));
                 }
                 existingAnnotations.push({
-                    id: d.id, section: pendingAnnot.section, item_index: pendingAnnot.index,
-                    start: pendingAnnot.start, end: pendingAnnot.end, text: pendingAnnot.text,
-                    annotation: document.getElementById('annotNote').value,
-                    verdict: verdictBtn ? verdictBtn.dataset.verdict : null,
+                    id: d.id,
+                    section: pendingClinAnnot.section,
+                    item_index: pendingClinAnnot.index,
+                    start: pendingClinAnnot.start,
+                    end: pendingClinAnnot.end,
+                    text: pendingClinAnnot.text,
+                    annotation: annotation,
+                    verdict: verdict,
+                    harm_reasoning: harmReasoning,
+                    is_gt_span: pendingClinAnnot.is_gt_span,
                 });
-                renderAnnotations();
-                annotModal.hide();
+                renderClinicalHighlights();
+                clinModal.hide();
                 statusEl.innerHTML = '<small class="text-success">Annotation saved</small>';
             }
         });
-    });
+    };
 
-    function renderAnnotations() {
-        document.querySelectorAll('.annotations-list').forEach(el => { el.innerHTML = ''; });
-        existingAnnotations.forEach(a => {
-            const container = document.querySelector(`.annotations-list[data-section="${a.section}"]`);
-            if (!container) return;
-            const verdictClass = a.verdict === 'correct' ? 'success' : (a.verdict === 'incorrect' ? 'danger' : 'secondary');
-            const div = document.createElement('div');
-            div.className = 'annotation-tag';
-            div.innerHTML = `
-                <span class="badge bg-${verdictClass} me-1">${a.verdict || '?'}</span>
-                <em>"${escHtml(a.text.substring(0, 60))}${a.text.length > 60 ? '...' : ''}"</em>
-                ${a.annotation ? ` — ${escHtml(a.annotation)}` : ''}
-                <button class="btn btn-sm btn-link text-danger p-0 ms-2 delete-annot" data-id="${a.id}">&times;</button>
-            `;
-            container.appendChild(div);
+    if (pendingClinAnnot.existing_id) {
+        fetch(`/api/annotation/${pendingClinAnnot.existing_id}/delete`, { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+            existingAnnotations = existingAnnotations.filter(a => a.id != pendingClinAnnot.existing_id);
+            saveNew();
         });
-        document.querySelectorAll('.delete-annot').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const id = this.dataset.id;
-                fetch(`/api/annotation/${id}/delete`, { method: 'POST' })
-                .then(r => r.json())
-                .then(d => {
-                    if (d.ok) { existingAnnotations = existingAnnotations.filter(a => a.id != id); renderAnnotations(); }
-                });
-            });
-        });
-        highlightAnnotatedSpans();
+    } else {
+        saveNew();
     }
+});
 
-    function highlightAnnotatedSpans() {
-        document.querySelectorAll('.annotatable-text').forEach(el => {
-            const section = el.dataset.section;
-            const index = parseInt(el.dataset.index);
-            const annots = existingAnnotations.filter(a => a.section === section && a.item_index === index);
-            if (annots.length === 0) return;
-            let rawText = el.textContent || el.innerText;
-            const sorted = annots.slice().sort((a, b) => a.start - b.start);
-            let html = '', cursor = 0;
-            for (const a of sorted) {
-                if (a.start >= rawText.length) continue;
-                if (a.start > cursor) html += escHtml(rawText.slice(cursor, a.start));
-                const verdictClass = a.verdict === 'correct' ? 'hl-correct' : (a.verdict === 'incorrect' ? 'hl-incorrect' : 'hl-unsure');
-                html += `<mark class="${verdictClass}" title="${escHtml(a.annotation || '')}">${escHtml(rawText.slice(a.start, a.end))}</mark>`;
-                cursor = a.end;
-            }
-            if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
-            html = html.replace(/\b(C\d+)\b/g, '<a href="#comment-$1" class="comment-ref">$1</a>');
-            el.innerHTML = html;
-        });
-    }
-
-    renderAnnotations();
-}
+// Initial render
+renderClinicalHighlights();
 </script>
 {% endblock %}

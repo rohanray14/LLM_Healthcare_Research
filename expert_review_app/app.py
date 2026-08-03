@@ -95,7 +95,7 @@ def dashboard():
         return redirect(url_for("login"))
 
     search = request.args.get("search", "").strip()
-    model_filter = request.args.get("model", MODELS[0] if MODELS else "")
+    model_name = "comment_annotations"
 
     # Get assigned post IDs for this expert
     assigned_ids = {a.post_id for a in Assignment.query.filter_by(expert_id=expert.id).all()}
@@ -106,55 +106,32 @@ def dashboard():
         if assigned_ids and pid not in assigned_ids:
             continue
 
-        key = (pid, model_filter)
+        key = (pid, model_name)
         post = POSTS.get(key)
-        # Fall back: show comment_annotations posts regardless of selected model
-        actual_model = model_filter
         if not post:
-            fallback_key = (pid, "comment_annotations")
-            post = POSTS.get(fallback_key)
-            if post:
-                actual_model = "comment_annotations"
-            else:
-                continue
-        comment_data = COMMENTS.get(pid, {})
+            continue
 
         if search and search.lower() not in (post["title"] or "").lower() and search.lower() not in pid.lower():
             continue
 
-        # Count total reviewable items
-        total_items = (
-            len(post["advice"])
-            + len(post["divergences"])
-            + len(post["clinical_notes"])
-        )
-
-        # Count reviewed items
-        reviewed = ItemReview.query.filter_by(
-            expert_id=expert.id, post_id=pid, model_name=actual_model
-        ).filter(ItemReview.verdict.isnot(None)).count()
-
         # Count text annotations
         annot_count = TextAnnotation.query.filter_by(
-            expert_id=expert.id, post_id=pid, model_name=actual_model
+            expert_id=expert.id, post_id=pid, model_name=model_name
         ).count()
 
         posts_list.append({
             "post_id": pid,
             "title": post["title"],
             "class_label": post["class_label"],
-            "total_items": total_items,
-            "reviewed": reviewed,
+            "num_comments": len(post["advice"]),
             "annotations": annot_count,
             "link": post["link"],
-            "model_override": actual_model if actual_model != model_filter else None,
+            "split": post.get("split", ""),
         })
 
     return render_template(
         "dashboard.html",
         posts=posts_list,
-        models=MODELS,
-        current_model=model_filter,
         search=search,
         username=session.get("username"),
     )
@@ -173,17 +150,11 @@ def review(post_id):
     if assigned_ids and post_id not in assigned_ids:
         return "Not assigned to this post", 403
 
-    model_name = request.args.get("model", MODELS[0] if MODELS else "")
+    model_name = "comment_annotations"
     key = (post_id, model_name)
     post = POSTS.get(key)
     if not post:
-        # Fall back to comment_annotations
-        fallback_key = (post_id, "comment_annotations")
-        post = POSTS.get(fallback_key)
-        if post:
-            model_name = "comment_annotations"
-        else:
-            return "Post not found", 404
+        return "Post not found", 404
 
     comment_data = COMMENTS.get(post_id, {})
 
@@ -226,7 +197,6 @@ def review(post_id):
         comment_data=comment_data,
         existing_reviews=existing_reviews,
         existing_annotations=existing_annotations,
-        models=MODELS,
         current_model=model_name,
         prev_id=prev_id,
         next_id=next_id,
@@ -456,19 +426,11 @@ def migrate_schema():
         db.session.commit()
 
 
-def assign_sample_posts():
-    """Auto-assign sample annotation posts to all experts."""
-    from load_data import SAMPLE_ANNOT_MODEL
-    sample_pids = [pid for (pid, m) in POSTS if m == SAMPLE_ANNOT_MODEL]
-    if not sample_pids:
-        return
-    experts = Expert.query.all()
-    for expert in experts:
-        existing = {a.post_id for a in Assignment.query.filter_by(expert_id=expert.id).all()}
-        for pid in sample_pids:
-            if pid not in existing:
-                db.session.add(Assignment(expert_id=expert.id, post_id=pid))
-    db.session.commit()
+def assign_all_posts():
+    """Auto-assign all posts to all experts (no assignments = see everything)."""
+    # If no assignments exist yet, all experts see all posts by default.
+    # This function can be used to explicitly assign posts if needed.
+    pass
 
 
 with app.app_context():
@@ -476,7 +438,7 @@ with app.app_context():
     migrate_schema()
     seed_users()
     init_data()
-    assign_sample_posts()
+    assign_all_posts()
 
 if __name__ == "__main__":
     app.run(debug=True, port=5001, use_reloader=False)
