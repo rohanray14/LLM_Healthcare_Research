@@ -150,9 +150,13 @@ def dashboard():
             "split": post.get("split", ""),
         })
 
-    # Sort: dev first, then by most comments descending
-    split_order = {"dev": 0, "test": 1}
-    posts_list.sort(key=lambda p: (split_order.get(p["split"], 2), -p["num_comments"]))
+    if is_admin:
+        # Admin: dev first, then by most comments descending
+        split_order = {"dev": 0, "test": 1}
+        posts_list.sort(key=lambda p: (split_order.get(p["split"], 2), -p["num_comments"]))
+    else:
+        # Expert: most comments first
+        posts_list.sort(key=lambda p: -p["num_comments"])
 
     return render_template(
         "dashboard.html",
