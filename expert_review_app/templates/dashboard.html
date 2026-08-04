@@ -4,7 +4,7 @@
 
 <div class="row mb-3 align-items-end">
     <div class="col-md-6">
-        <h5>Posts to Annotate</h5>
+        <h5>{% if is_admin %}All Posts (Admin View){% else %}Posts to Annotate{% endif %}</h5>
     </div>
     <div class="col-md-6">
         <form method="GET" class="row g-2 justify-content-end">
@@ -40,6 +40,7 @@
                 <th>Split</th>
                 <th>Comments</th>
                 <th>Annotations</th>
+                {% if is_admin %}<th>Annotators</th>{% endif %}
                 <th>Action</th>
             </tr>
         </thead>
@@ -59,8 +60,21 @@
                     <span class="text-muted">--</span>
                     {% endif %}
                 </td>
+                {% if is_admin %}
                 <td>
+                    {% if p.annotator_count > 0 %}
+                    <span class="badge bg-success">{{ p.annotator_count }}</span>
+                    {% else %}
+                    <span class="text-muted">--</span>
+                    {% endif %}
+                </td>
+                {% endif %}
+                <td>
+                    {% if is_admin %}
+                    <a href="{{ url_for('admin_review', post_id=p.post_id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                    {% else %}
                     <a href="{{ url_for('review', post_id=p.post_id) }}" class="btn btn-sm btn-outline-primary">Annotate</a>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

@@ -96,14 +96,17 @@ def dashboard():
 
     search = request.args.get("search", "").strip()
     model_name = "comment_annotations"
+    is_admin = expert.username == "admin"
 
-    # Get assigned post IDs for this expert
-    assigned_ids = {a.post_id for a in Assignment.query.filter_by(expert_id=expert.id).all()}
+    # Get assigned post IDs for this expert (admin sees everything)
+    assigned_ids = set()
+    if not is_admin:
+        assigned_ids = {a.post_id for a in Assignment.query.filter_by(expert_id=expert.id).all()}
 
-    # Build post list with progress (only assigned posts)
+    # Build post list
     posts_list = []
     for pid in POST_IDS:
-        if assigned_ids and pid not in assigned_ids:
+        if not is_admin and assigned_ids and pid not in assigned_ids:
             continue
 
         key = (pid, model_name)
@@ -114,10 +117,20 @@ def dashboard():
         if search and search.lower() not in (post["title"] or "").lower() and search.lower() not in pid.lower():
             continue
 
-        # Count text annotations
-        annot_count = TextAnnotation.query.filter_by(
-            expert_id=expert.id, post_id=pid, model_name=model_name
-        ).count()
+        if is_admin:
+            # Admin sees total annotations across all experts
+            annot_count = TextAnnotation.query.filter_by(
+                post_id=pid, model_name=model_name
+            ).count()
+            # Count how many distinct experts have annotated this post
+            annotator_count = db.session.query(
+                db.func.count(db.func.distinct(TextAnnotation.expert_id))
+            ).filter_by(post_id=pid, model_name=model_name).scalar() or 0
+        else:
+            annot_count = TextAnnotation.query.filter_by(
+                expert_id=expert.id, post_id=pid, model_name=model_name
+            ).count()
+            annotator_count = 0
 
         posts_list.append({
             "post_id": pid,
@@ -125,15 +138,21 @@ def dashboard():
             "class_label": post["class_label"],
             "num_comments": len(post["advice"]),
             "annotations": annot_count,
+            "annotator_count": annotator_count,
             "link": post["link"],
             "split": post.get("split", ""),
         })
+
+    # Sort: dev first, then by most comments descending
+    split_order = {"dev": 0, "test": 1}
+    posts_list.sort(key=lambda p: (split_order.get(p["split"], 2), -p["num_comments"]))
 
     return render_template(
         "dashboard.html",
         posts=posts_list,
         search=search,
         username=session.get("username"),
+        is_admin=is_admin,
     )
 
 
@@ -302,6 +321,67 @@ def delete_annotation(annot_id):
         db.session.delete(annot)
         db.session.commit()
     return jsonify({"ok": True})
+
+
+# ── Admin: View all annotations on a post ─────────────
+
+@app.route("/admin/review/<post_id>")
+def admin_review(post_id):
+    expert = get_expert()
+    if not expert or expert.username != "admin":
+        return redirect(url_for("login"))
+
+    model_name = "comment_annotations"
+    key = (post_id, model_name)
+    post = POSTS.get(key)
+    if not post:
+        return "Post not found", 404
+
+    comment_data = COMMENTS.get(post_id, {})
+
+    # Load ALL experts' annotations for this post
+    all_annotations = []
+    annotations_by_expert = {}
+    for a in TextAnnotation.query.filter_by(post_id=post_id, model_name=model_name).all():
+        expert_obj = Expert.query.get(a.expert_id)
+        annot = {
+            "id": a.id,
+            "expert_id": a.expert_id,
+            "expert_name": expert_obj.username if expert_obj else "unknown",
+            "section": a.section,
+            "item_index": a.item_index,
+            "start": a.start_offset,
+            "end": a.end_offset,
+            "text": a.highlighted_text,
+            "annotation": a.annotation_text,
+            "verdict": a.verdict,
+            "harm_reasoning": a.harm_reasoning or "",
+        }
+        all_annotations.append(annot)
+        if annot["expert_name"] not in annotations_by_expert:
+            annotations_by_expert[annot["expert_name"]] = []
+        annotations_by_expert[annot["expert_name"]].append(annot)
+
+    # Prev/next nav across all posts
+    try:
+        idx = POST_IDS.index(post_id)
+    except ValueError:
+        idx = 0
+    prev_id = POST_IDS[idx - 1] if idx > 0 else None
+    next_id = POST_IDS[idx + 1] if idx < len(POST_IDS) - 1 else None
+
+    return render_template(
+        "admin_review.html",
+        post=post,
+        comment_data=comment_data,
+        all_annotations=all_annotations,
+        annotations_by_expert=annotations_by_expert,
+        expert_names=sorted(annotations_by_expert.keys()),
+        current_model=model_name,
+        prev_id=prev_id,
+        next_id=next_id,
+        username=session.get("username"),
+    )
 
 
 # ── Admin: Manage experts and assignments ─────────────
