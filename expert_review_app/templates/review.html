@@ -47,8 +47,7 @@
         {% for item in post.advice %}
         <div class="card mb-3 section-card comment-annotation-card" data-section="advice" data-index="{{ loop.index0 }}">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Comment: <code>{{ item.comment_id or ('C' ~ loop.index) }}</code></h6>
-                <span class="badge bg-info text-dark">{{ item.agreement }}</span>
+                <h6 class="mb-0">Comment {{ loop.index }}</h6>
             </div>
             <div class="card-body">
                 <div class="annotatable-text clinical-comment-text"
