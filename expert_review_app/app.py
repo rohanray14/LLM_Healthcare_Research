@@ -482,16 +482,7 @@ SEED_USERS = {
 
 
 def seed_users():
-    """Create or reset admin account and remove old seeded experts."""
-    # Remove all non-admin experts and their assignments
-    old_experts = Expert.query.filter(Expert.username != "admin").all()
-    for e in old_experts:
-        Assignment.query.filter_by(expert_id=e.id).delete()
-        TextAnnotation.query.filter_by(expert_id=e.id).delete()
-        ItemReview.query.filter_by(expert_id=e.id).delete()
-        db.session.delete(e)
-
-    # Ensure admin exists
+    """Ensure admin account exists."""
     for username, password in SEED_USERS.items():
         expert = Expert.query.filter_by(username=username).first()
         if not expert:
