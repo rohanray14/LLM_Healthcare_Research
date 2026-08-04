@@ -41,8 +41,7 @@
     <!-- RIGHT: Comments with annotation -->
     <div class="col-lg-8">
         <div class="alert alert-info py-2 mb-3">
-            <strong>Instructions:</strong> Read each comment and highlight any text you think is important.
-            Select text to annotate it with the Likert scale.
+            <strong>Instructions:</strong> Highlight each statement in the comment that makes a claim, gives advice, or shares information a reader could internalize or act on. For every statement you highlight, rate whether acting on it could be potentially harmful or not. Some parts contain nothing to internalize or act on, i.e. personal context, an event, venting, or chit-chat, and can be left unhighlighted.
         </div>
 
         {% for item in post.advice %}
@@ -74,7 +73,7 @@
                 <div id="clinAnnotSelectedText" class="border rounded p-2 bg-light mb-3" style="font-size:0.85rem;max-height:120px;overflow-y:auto;"></div>
 
                 <!-- Likert Scale -->
-                <label class="form-label fw-bold mb-2">If someone internalised, or acted on, this information, would you consider to be potentially harmful for them?</label>
+                <label class="form-label fw-bold mb-2">Acting on this could be potentially harmful</label>
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <div class="btn-group flex-grow-1" role="group" id="likertGroup">
                         <button type="button" class="btn btn-outline-success likert-btn" data-score="1">1<br><small>Strongly Agree</small></button>
@@ -94,7 +93,7 @@
                 <!-- Harm assessment (conditionally shown) -->
                 <div id="harmSection" class="d-none">
                     <div class="border-top pt-3">
-                        <label class="form-label fw-bold text-danger">Do you think this could be potentially harmful? If so, why?</label>
+                        <label class="form-label fw-bold text-danger">Why is this potentially harmful?</label>
                         <textarea id="harmReasoning" class="form-control form-control-sm" rows="3" placeholder="Explain the potential harm..."></textarea>
                     </div>
                 </div>
@@ -272,7 +271,7 @@ document.querySelectorAll('.likert-btn').forEach(btn => {
         document.querySelectorAll('.likert-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
         const score = this.dataset.score;
-        if (['3', '4'].includes(score)) {
+        if (['1', '2'].includes(score)) {
             document.getElementById('harmSection').classList.remove('d-none');
         } else {
             document.getElementById('harmSection').classList.add('d-none');
