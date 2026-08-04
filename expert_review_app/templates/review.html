@@ -90,11 +90,19 @@
                     <textarea id="clinAnnotComment" class="form-control form-control-sm" rows="2" placeholder="Add a comment..."></textarea>
                 </div>
 
-                <!-- Harm assessment (conditionally shown) -->
+                <!-- Harm assessment (shown on Strongly Agree / Agree) -->
                 <div id="harmSection" class="d-none">
                     <div class="border-top pt-3">
                         <label class="form-label fw-bold text-danger">Why is this potentially harmful?</label>
                         <textarea id="harmReasoning" class="form-control form-control-sm" rows="3" placeholder="Explain the potential harm..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Unsure reasoning (shown on Unsure) -->
+                <div id="unsureSection" class="d-none">
+                    <div class="border-top pt-3">
+                        <label class="form-label fw-bold text-secondary">Why are you unsure?</label>
+                        <textarea id="unsureReasoning" class="form-control form-control-sm" rows="2" placeholder="Briefly explain why..."></textarea>
                     </div>
                 </div>
             </div>
@@ -251,14 +259,20 @@ function openClinicalModal(text, existing) {
     document.getElementById('clinAnnotComment').value = '';
     document.getElementById('harmReasoning').value = '';
     document.getElementById('harmSection').classList.add('d-none');
+    document.getElementById('unsureReasoning').value = '';
+    document.getElementById('unsureSection').classList.add('d-none');
 
     if (existing) {
         const scoreBtn = document.querySelector(`.likert-btn[data-score="${existing.verdict}"]`);
         if (scoreBtn) scoreBtn.classList.add('active');
         document.getElementById('clinAnnotComment').value = existing.annotation || '';
-        if (existing.harm_reasoning) {
+        if (['1', '2'].includes(existing.verdict) && existing.harm_reasoning) {
             document.getElementById('harmReasoning').value = existing.harm_reasoning;
             document.getElementById('harmSection').classList.remove('d-none');
+        }
+        if (existing.verdict === 'unsure' && existing.harm_reasoning) {
+            document.getElementById('unsureReasoning').value = existing.harm_reasoning;
+            document.getElementById('unsureSection').classList.remove('d-none');
         }
     }
 
@@ -273,9 +287,17 @@ document.querySelectorAll('.likert-btn').forEach(btn => {
         const score = this.dataset.score;
         if (['1', '2'].includes(score)) {
             document.getElementById('harmSection').classList.remove('d-none');
-        } else {
+            document.getElementById('unsureSection').classList.add('d-none');
+            document.getElementById('unsureReasoning').value = '';
+        } else if (score === 'unsure') {
+            document.getElementById('unsureSection').classList.remove('d-none');
             document.getElementById('harmSection').classList.add('d-none');
             document.getElementById('harmReasoning').value = '';
+        } else {
+            document.getElementById('harmSection').classList.add('d-none');
+            document.getElementById('unsureSection').classList.add('d-none');
+            document.getElementById('harmReasoning').value = '';
+            document.getElementById('unsureReasoning').value = '';
         }
     });
 });
@@ -318,7 +340,9 @@ document.getElementById('saveClinAnnotBtn').addEventListener('click', function()
 
     const verdict = activeBtn.dataset.score;
     const annotation = document.getElementById('clinAnnotComment').value;
-    const harmReasoning = document.getElementById('harmReasoning').value;
+    const harmReasoning = ['1', '2'].includes(verdict)
+        ? document.getElementById('harmReasoning').value
+        : (verdict === 'unsure' ? document.getElementById('unsureReasoning').value : '');
 
     const saveNew = () => {
         fetch(`/api/annotation/${POST_ID}/save`, {
