@@ -462,25 +462,20 @@ def admin_assign():
 # Seeded accounts (passwords reset on every startup so credentials stay reliable)
 SEED_USERS = {
     "admin": "admin123",
-    "dr_smith": "password123",
-    "dr_jones": "password456",
-    "anusha": "anusha2026",
-    "sarah": "sarah2026",
-    "nikhil": "nikhil2026",
-    "reet": "reet2026",
-    "mehar": "mehar2026",
-    "ruiqi": "ruiqi2026",
-    "annotator5": "annotate500",
-    "annotator6": "annotate600",
-    "annotator7": "annotate700",
-    "annotator8": "annotate800",
-    "annotator9": "annotate900",
-    "annotator10": "annotate1000",
 }
 
 
 def seed_users():
-    """Create or reset passwords for known team accounts."""
+    """Create or reset admin account and remove old seeded experts."""
+    # Remove all non-admin experts and their assignments
+    old_experts = Expert.query.filter(Expert.username != "admin").all()
+    for e in old_experts:
+        Assignment.query.filter_by(expert_id=e.id).delete()
+        TextAnnotation.query.filter_by(expert_id=e.id).delete()
+        ItemReview.query.filter_by(expert_id=e.id).delete()
+        db.session.delete(e)
+
+    # Ensure admin exists
     for username, password in SEED_USERS.items():
         expert = Expert.query.filter_by(username=username).first()
         if not expert:
