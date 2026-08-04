@@ -65,11 +65,16 @@
         </div>
         <div class="post-checklist border rounded p-2" data-expert-id="{{ expert.id }}" style="max-height:300px;overflow-y:auto;">
             {% for pid in all_post_ids %}
+            {% set owner = taken_by.get(pid) %}
+            {% set is_mine = pid in assignments.get(expert.id, []) %}
+            {% set is_taken = owner and owner != expert.username %}
             <div class="form-check post-check-item" data-post-id="{{ pid }}">
                 <input class="form-check-input post-checkbox" type="checkbox" value="{{ pid }}" id="chk-{{ expert.id }}-{{ loop.index }}"
-                    {% if pid in assignments.get(expert.id, []) %}checked{% endif %}>
-                <label class="form-check-label small" for="chk-{{ expert.id }}-{{ loop.index }}">
+                    {% if is_mine %}checked{% endif %}
+                    {% if is_taken %}disabled{% endif %}>
+                <label class="form-check-label small {% if is_taken %}text-muted{% endif %}" for="chk-{{ expert.id }}-{{ loop.index }}">
                     <span class="text-muted">#{{ loop.index }}</span> {{ pid }}
+                    {% if is_taken %}<span class="badge bg-secondary ms-1">{{ owner }}</span>{% endif %}
                 </label>
             </div>
             {% endfor %}

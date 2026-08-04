@@ -405,10 +405,19 @@ def admin():
     for e in experts:
         assignments[e.id] = [a.post_id for a in Assignment.query.filter_by(expert_id=e.id).all()]
 
+    # Build map of post_id -> expert username (for showing who owns each post)
+    taken_by = {}
+    for e in experts:
+        if e.username == "admin":
+            continue
+        for pid in assignments.get(e.id, []):
+            taken_by[pid] = e.username
+
     return render_template(
         "admin.html",
         experts=experts,
         assignments=assignments,
+        taken_by=taken_by,
         all_post_ids=POST_IDS,
         username=session.get("username"),
     )
@@ -449,8 +458,11 @@ def admin_assign():
     # Remove existing assignments for this expert
     Assignment.query.filter_by(expert_id=expert_id).delete()
 
-    # Add new assignments
+    # Add new assignments (skip posts already assigned to someone else)
     for pid in post_ids:
+        existing = Assignment.query.filter_by(post_id=pid).first()
+        if existing and existing.expert_id != expert_id:
+            continue  # already taken by another expert
         db.session.add(Assignment(expert_id=expert_id, post_id=pid))
 
     db.session.commit()
