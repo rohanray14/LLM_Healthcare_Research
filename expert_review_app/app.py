@@ -99,14 +99,21 @@ def dashboard():
     is_admin = expert.username == "admin"
 
     # Get assigned post IDs for this expert (admin sees everything)
-    assigned_ids = set()
     if not is_admin:
         assigned_ids = {a.post_id for a in Assignment.query.filter_by(expert_id=expert.id).all()}
+        if not assigned_ids:
+            return render_template(
+                "dashboard.html",
+                posts=[],
+                search=search,
+                username=session.get("username"),
+                is_admin=False,
+            )
 
     # Build post list
     posts_list = []
     for pid in POST_IDS:
-        if not is_admin and assigned_ids and pid not in assigned_ids:
+        if not is_admin and pid not in assigned_ids:
             continue
 
         key = (pid, model_name)
@@ -164,10 +171,11 @@ def review(post_id):
     if not expert:
         return redirect(url_for("login"))
 
-    # Check that expert is assigned to this post
-    assigned_ids = {a.post_id for a in Assignment.query.filter_by(expert_id=expert.id).all()}
-    if assigned_ids and post_id not in assigned_ids:
-        return "Not assigned to this post", 403
+    # Check that expert is assigned to this post (admin can access all)
+    if expert.username != "admin":
+        assigned_ids = {a.post_id for a in Assignment.query.filter_by(expert_id=expert.id).all()}
+        if post_id not in assigned_ids:
+            return "Not assigned to this post", 403
 
     model_name = "comment_annotations"
     key = (post_id, model_name)
