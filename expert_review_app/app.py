@@ -417,11 +417,23 @@ def admin():
         for pid in assignments.get(e.id, []):
             taken_by[pid] = e.username
 
+    # Build post metadata for display in assignment lists
+    post_meta = {}
+    for pid in POST_IDS:
+        key = (pid, "comment_annotations")
+        post = POSTS.get(key)
+        if post:
+            post_meta[pid] = {
+                "themes": post["class_label"],
+                "num_comments": len(post["advice"]),
+            }
+
     return render_template(
         "admin.html",
         experts=experts,
         assignments=assignments,
         taken_by=taken_by,
+        post_meta=post_meta,
         all_post_ids=POST_IDS,
         username=session.get("username"),
     )

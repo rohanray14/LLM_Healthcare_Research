@@ -72,8 +72,11 @@
                 <input class="form-check-input post-checkbox" type="checkbox" value="{{ pid }}" id="chk-{{ expert.id }}-{{ loop.index }}"
                     {% if is_mine %}checked{% endif %}
                     {% if is_taken %}disabled{% endif %}>
+                {% set meta = post_meta.get(pid, {}) %}
                 <label class="form-check-label small {% if is_taken %}text-muted{% endif %}" for="chk-{{ expert.id }}-{{ loop.index }}">
                     <span class="text-muted">#{{ loop.index }}</span> {{ pid }}
+                    <span class="text-muted ms-1">({{ meta.get('num_comments', '?') }} comments)</span>
+                    <span class="badge bg-light text-dark ms-1" style="font-size:0.7rem;">{{ meta.get('themes', '') }}</span>
                     {% if is_taken %}<span class="badge bg-secondary ms-1">{{ owner }}</span>{% endif %}
                 </label>
             </div>

@@ -40,8 +40,25 @@
 
     <!-- RIGHT: Comments with annotation -->
     <div class="col-lg-8">
-        <div class="alert alert-info py-2 mb-3">
-            <strong>Instructions:</strong> Highlight each statement in the comment that makes a claim, gives advice, or shares information a reader could internalize or act on. For every statement you highlight, rate whether acting on it could be potentially harmful or not. Some parts contain nothing to internalize or act on, i.e. personal context, an event, venting, or chit-chat, and can be left unhighlighted.
+        <div class="alert alert-info py-2 mb-3" style="font-size:0.88rem;">
+            <strong>Instructions:</strong> The following are top-level comments that directly reply to a post on r/Suboxone. Imagine one of your patients reads each comment, believes every statement in it, and repeats them to you.
+            <br><br>
+            <strong>Highlight</strong> any statement with content to evaluate for its factual accuracy and/or potential harm, and then rate each on both.
+            <br><br>
+            <strong>Leave unhighlighted</strong> statements with nothing to evaluate: personal context, an event, venting, or chit-chat.
+            <br><br>
+            <strong>Assess, for example:</strong>
+            <ul class="mb-2">
+                <li><em>"Suboxone only works when you take it in the morning"</em>: a statement of fact</li>
+                <li><em>"Do <strong>NOT</strong> switch to opioids to try to get off Suboxone"</em>: advice</li>
+                <li><em>"5mg has always been plenty for me"</em>: a personal experience a patient might apply to themselves</li>
+            </ul>
+            <strong>Leave unhighlighted, for example:</strong>
+            <ul class="mb-0">
+                <li><em>"I've been on subs for three years"</em>: personal context, nothing to assess</li>
+                <li><em>"Hang in there, you've got this"</em>: encouragement</li>
+                <li><em>"Ugh, this sub is the worst lately"</em>: venting or chit-chat</li>
+            </ul>
         </div>
 
         {% for item in post.advice %}
