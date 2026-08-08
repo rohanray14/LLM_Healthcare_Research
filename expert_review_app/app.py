@@ -454,11 +454,34 @@ def admin_add_expert():
     if Expert.query.filter_by(username=username).first():
         return jsonify({"error": "Username already exists"}), 400
 
-    new_expert = Expert(username=username)
+    new_expert = Expert(username=username, password_plain=password)
     new_expert.set_password(password)
     db.session.add(new_expert)
     db.session.commit()
     return jsonify({"ok": True, "id": new_expert.id})
+
+
+@app.route("/admin/delete_expert", methods=["POST"])
+def admin_delete_expert():
+    expert = get_expert()
+    if not expert or expert.username != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.json
+    expert_id = data.get("expert_id")
+    target = Expert.query.get(expert_id)
+    if not target:
+        return jsonify({"error": "Expert not found"}), 404
+    if target.username == "admin":
+        return jsonify({"error": "Cannot delete admin"}), 400
+
+    # Delete all related data
+    TextAnnotation.query.filter_by(expert_id=expert_id).delete()
+    ItemReview.query.filter_by(expert_id=expert_id).delete()
+    Assignment.query.filter_by(expert_id=expert_id).delete()
+    db.session.delete(target)
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @app.route("/admin/assign", methods=["POST"])
@@ -501,6 +524,7 @@ def seed_users():
             expert = Expert(username=username)
             db.session.add(expert)
         expert.set_password(password)
+        expert.password_plain = password
     db.session.commit()
 
 
@@ -514,7 +538,9 @@ def migrate_schema():
         cols = [c["name"] for c in inspector.get_columns("expert")]
         if "password_hash" not in cols:
             db.session.execute(text("ALTER TABLE expert ADD COLUMN password_hash VARCHAR(256)"))
-            db.session.commit()
+        if "password_plain" not in cols:
+            db.session.execute(text("ALTER TABLE expert ADD COLUMN password_plain VARCHAR(256)"))
+        db.session.commit()
 
     # Add missing columns to text_annotation table
     if "text_annotation" in inspector.get_table_names():

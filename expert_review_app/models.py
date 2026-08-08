@@ -8,6 +8,7 @@ class Expert(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=True)
+    password_plain = db.Column(db.String(256), nullable=True)
     reviews = db.relationship("ItemReview", backref="expert", lazy=True)
     annotations = db.relationship("TextAnnotation", backref="expert", lazy=True)
     assignments = db.relationship("Assignment", backref="expert", lazy=True)
