@@ -206,6 +206,8 @@ def review(post_id):
             "text": a.highlighted_text,
             "annotation": a.annotation_text,
             "verdict": a.verdict,
+            "harm_verdict": a.harm_verdict or "",
+            "factual_reasoning": a.factual_reasoning or "",
             "harm_reasoning": a.harm_reasoning or "",
             "is_gt_span": a.is_gt_span or False,
         })
@@ -315,6 +317,8 @@ def save_annotation(post_id):
         highlighted_text=data["text"],
         annotation_text=data.get("annotation", ""),
         verdict=data.get("verdict"),
+        harm_verdict=data.get("harm_verdict"),
+        factual_reasoning=data.get("factual_reasoning", ""),
         harm_reasoning=data.get("harm_reasoning", ""),
         is_gt_span=data.get("is_gt_span", False),
     )
@@ -367,6 +371,8 @@ def admin_review(post_id):
             "text": a.highlighted_text,
             "annotation": a.annotation_text,
             "verdict": a.verdict,
+            "harm_verdict": a.harm_verdict or "",
+            "factual_reasoning": a.factual_reasoning or "",
             "harm_reasoning": a.harm_reasoning or "",
         }
         all_annotations.append(annot)
@@ -551,6 +557,10 @@ def migrate_schema():
             db.session.execute(text("ALTER TABLE text_annotation ADD COLUMN harm_reasoning TEXT DEFAULT ''"))
         if "is_gt_span" not in cols:
             db.session.execute(text("ALTER TABLE text_annotation ADD COLUMN is_gt_span BOOLEAN DEFAULT 0"))
+        if "harm_verdict" not in cols:
+            db.session.execute(text("ALTER TABLE text_annotation ADD COLUMN harm_verdict VARCHAR(20)"))
+        if "factual_reasoning" not in cols:
+            db.session.execute(text("ALTER TABLE text_annotation ADD COLUMN factual_reasoning TEXT DEFAULT ''"))
         db.session.commit()
 
 

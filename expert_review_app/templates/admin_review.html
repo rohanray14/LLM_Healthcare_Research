@@ -92,7 +92,7 @@ function escHtml(t) {
 
 function getLikertLabel(verdict) {
     const labels = {'1': 'Strongly Agree', '2': 'Agree', '3': 'Disagree', '4': 'Strongly Disagree', 'unsure': 'Unsure'};
-    return labels[verdict] || verdict || '?';
+    return labels[verdict] || verdict || '—';
 }
 
 function getLikertBadgeClass(verdict) {
@@ -101,6 +101,12 @@ function getLikertBadgeClass(verdict) {
     if (verdict === '3') return 'orange';
     if (verdict === '4') return 'danger';
     return 'secondary';
+}
+
+function getVerdictTooltip(a) {
+    let tip = `${a.expert_name} — FA: ${getLikertLabel(a.verdict)}, PH: ${getLikertLabel(a.harm_verdict)}`;
+    if (a.annotation) tip += ` — ${a.annotation}`;
+    return tip;
 }
 
 function renderAdminHighlights(filterExpert) {
@@ -116,7 +122,8 @@ function renderAdminHighlights(filterExpert) {
         // Build highlights sorted by start
         let highlights = annots.map(a => ({
             start: a.start, end: a.end, expert: a.expert_name, verdict: a.verdict,
-            annotation: a.annotation, harm_reasoning: a.harm_reasoning, id: a.id
+            harm_verdict: a.harm_verdict || '', annotation: a.annotation,
+            factual_reasoning: a.factual_reasoning, harm_reasoning: a.harm_reasoning, id: a.id
         })).sort((a, b) => a.start - b.start);
 
         // Remove overlaps (keep all, just render sequentially)
@@ -126,7 +133,7 @@ function renderAdminHighlights(filterExpert) {
             if (h.start < cursor) continue; // skip overlap
             if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
             const color = expertColors[h.expert] || '#6c757d';
-            const title = `${h.expert}: ${getLikertLabel(h.verdict)}${h.annotation ? ' — ' + h.annotation : ''}`;
+            const title = `${h.expert} — FA: ${getLikertLabel(h.verdict)}, PH: ${getLikertLabel(h.harm_verdict)}${h.annotation ? ' — ' + h.annotation : ''}`;
             html += `<mark style="background:${color}22; border-bottom:2px solid ${color}; cursor:pointer;" title="${escHtml(title)}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
             cursor = h.end;
         }
@@ -140,15 +147,18 @@ function renderAdminHighlights(filterExpert) {
         const container = document.querySelector(`.annotations-list[data-section="${a.section}"][data-index="${a.item_index}"]`);
         if (!container) return;
         const color = expertColors[a.expert_name] || '#6c757d';
-        const cls = getLikertBadgeClass(a.verdict);
         const div = document.createElement('div');
         div.className = 'annotation-tag';
         div.dataset.expert = a.expert_name;
+        const fCls = getLikertBadgeClass(a.verdict);
+        const hCls = getLikertBadgeClass(a.harm_verdict);
         div.innerHTML = `
             <span class="badge" style="background:${color};">${a.expert_name}</span>
-            <span class="badge bg-${cls} ms-1">${getLikertLabel(a.verdict)}</span>
+            <span class="badge bg-${fCls} ms-1" title="Factual accuracy">FA: ${getLikertLabel(a.verdict)}</span>
+            <span class="badge bg-${hCls} ms-1" title="Potential harm">PH: ${getLikertLabel(a.harm_verdict)}</span>
             <em class="ms-1">"${escHtml(a.text.substring(0, 80))}${a.text.length > 80 ? '...' : ''}"</em>
             ${a.annotation ? ` — ${escHtml(a.annotation)}` : ''}
+            ${a.factual_reasoning ? ` <span class="badge bg-warning text-dark ms-1">Factual: ${escHtml(a.factual_reasoning.substring(0, 60))}${a.factual_reasoning.length > 60 ? '...' : ''}</span>` : ''}
             ${a.harm_reasoning ? ` <span class="badge bg-danger ms-1">Harm: ${escHtml(a.harm_reasoning.substring(0, 60))}${a.harm_reasoning.length > 60 ? '...' : ''}</span>` : ''}
         `;
         container.appendChild(div);

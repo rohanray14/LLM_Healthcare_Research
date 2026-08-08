@@ -43,7 +43,7 @@
         <div class="alert alert-info py-2 mb-3" style="font-size:0.88rem;">
             <strong>Instructions:</strong> The following are top-level comments that directly reply to a post on r/Suboxone. Imagine one of your patients reads each comment, believes every statement in it, and repeats them to you.
             <br><br>
-            <strong>Highlight</strong> any statement with content to evaluate for its factual accuracy and/or potential harm, and then rate each on both.
+            <strong>Highlight</strong> any statement with content to evaluate for its <u>factual accuracy</u> and/or <u>potential harm</u>, and then rate each on both.
             <br><br>
             <strong>Leave unhighlighted</strong> statements with nothing to evaluate: personal context, an event, venting, or chit-chat.
             <br><br>
@@ -77,9 +77,9 @@
     </div>
 </div>
 
-<!-- Clinical Annotation Modal (Likert Scale) -->
+<!-- Clinical Annotation Modal (Two Independent Questions) -->
 <div class="modal fade" id="clinicalAnnotModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header py-2">
                 <h6 class="modal-title">Clinical Expert Annotation</h6>
@@ -88,38 +88,50 @@
             <div class="modal-body">
                 <div id="clinAnnotSelectedText" class="border rounded p-2 bg-light mb-3" style="font-size:0.85rem;max-height:120px;overflow-y:auto;"></div>
 
-                <!-- Likert Scale -->
-                <label class="form-label fw-bold mb-2">Acting on this could be potentially harmful</label>
-                <div class="d-flex align-items-center gap-2 mb-2">
-                    <div class="btn-group flex-grow-1" role="group" id="likertGroup">
-                        <button type="button" class="btn btn-outline-success likert-btn" data-score="1">1<br><small>Strongly Agree</small></button>
-                        <button type="button" class="btn btn-outline-secondary likert-btn" data-score="2">2<br><small>Agree</small></button>
-                        <button type="button" class="btn btn-outline-orange likert-btn" data-score="3">3<br><small>Disagree</small></button>
-                        <button type="button" class="btn btn-outline-danger likert-btn" data-score="4">4<br><small>Strongly Disagree</small></button>
+                <!-- Q1: Factual Accuracy -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold mb-2">Is this factually accurate?</label>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="btn-group flex-grow-1" role="group">
+                            <button type="button" class="btn btn-outline-success factual-btn" data-score="1">1<br><small>Strongly Agree</small></button>
+                            <button type="button" class="btn btn-outline-secondary factual-btn" data-score="2">2<br><small>Agree</small></button>
+                            <button type="button" class="btn btn-outline-orange factual-btn" data-score="3">3<br><small>Disagree</small></button>
+                            <button type="button" class="btn btn-outline-danger factual-btn" data-score="4">4<br><small>Strongly Disagree</small></button>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary factual-btn" data-score="unsure">Unsure</button>
                     </div>
-                    <button type="button" class="btn btn-outline-secondary likert-btn" data-score="unsure" id="unsureBtn">Unsure</button>
+                    <div id="factualReasonSection" class="d-none">
+                        <label class="form-label small text-danger mb-1">Why is this factually inaccurate?</label>
+                        <textarea id="factualReasoning" class="form-control form-control-sm" rows="2" placeholder="Explain..."></textarea>
+                    </div>
                 </div>
+
+                <hr>
+
+                <!-- Q2: Potential Harm -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold mb-2">Is this potentially harmful?</label>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="btn-group flex-grow-1" role="group">
+                            <button type="button" class="btn btn-outline-success harm-btn" data-score="1">1<br><small>Strongly Agree</small></button>
+                            <button type="button" class="btn btn-outline-secondary harm-btn" data-score="2">2<br><small>Agree</small></button>
+                            <button type="button" class="btn btn-outline-orange harm-btn" data-score="3">3<br><small>Disagree</small></button>
+                            <button type="button" class="btn btn-outline-danger harm-btn" data-score="4">4<br><small>Strongly Disagree</small></button>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary harm-btn" data-score="unsure">Unsure</button>
+                    </div>
+                    <div id="harmReasonSection" class="d-none">
+                        <label class="form-label small text-danger mb-1">Why is this potentially harmful?</label>
+                        <textarea id="harmReasoning" class="form-control form-control-sm" rows="2" placeholder="Explain the potential harm..."></textarea>
+                    </div>
+                </div>
+
+                <hr>
 
                 <!-- Comment -->
-                <div class="mb-3">
+                <div class="mb-2">
                     <label class="form-label small text-muted mb-1">Comment (optional)</label>
                     <textarea id="clinAnnotComment" class="form-control form-control-sm" rows="2" placeholder="Add a comment..."></textarea>
-                </div>
-
-                <!-- Harm assessment (shown on Strongly Agree / Agree) -->
-                <div id="harmSection" class="d-none">
-                    <div class="border-top pt-3">
-                        <label class="form-label fw-bold text-danger">Why is this potentially harmful?</label>
-                        <textarea id="harmReasoning" class="form-control form-control-sm" rows="3" placeholder="Explain the potential harm..."></textarea>
-                    </div>
-                </div>
-
-                <!-- Unsure reasoning (shown on Unsure) -->
-                <div id="unsureSection" class="d-none">
-                    <div class="border-top pt-3">
-                        <label class="form-label fw-bold text-secondary">Why are you unsure?</label>
-                        <textarea id="unsureReasoning" class="form-control form-control-sm" rows="2" placeholder="Briefly explain why..."></textarea>
-                    </div>
                 </div>
             </div>
             <div class="modal-footer py-1">
@@ -145,13 +157,12 @@ function escHtml(t) {
 }
 
 // ═══════════════════════════════════════════════════════
-// CLINICAL ANNOTATION MODE
+// CLINICAL ANNOTATION MODE (Two Questions)
 // ═══════════════════════════════════════════════════════
 
 const clinModal = new bootstrap.Modal(document.getElementById('clinicalAnnotModal'));
 let pendingClinAnnot = null;
 
-// Render saved annotations
 function renderClinicalHighlights() {
     document.querySelectorAll('.clinical-comment-text').forEach(el => {
         const section = el.dataset.section;
@@ -162,24 +173,21 @@ function renderClinicalHighlights() {
 
         let highlights = [];
         for (const a of savedAnnots) {
-            highlights.push({ start: a.start, end: a.end, type: 'saved', verdict: a.verdict, id: a.id, annotation: a.annotation, harm_reasoning: a.harm_reasoning });
+            highlights.push({ start: a.start, end: a.end, verdict: a.verdict, harm_verdict: a.harm_verdict, id: a.id, annotation: a.annotation });
         }
-
         highlights.sort((a, b) => a.start - b.start);
 
-        // Remove overlaps
         const merged = [];
         for (const h of highlights) {
             if (merged.length && merged[merged.length - 1].end > h.start) continue;
             merged.push(h);
         }
 
-        // Build HTML
         let html = '';
         let cursor = 0;
         for (const h of merged) {
             if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
-            const cls = getLikertClass(h.verdict);
+            const cls = getHighlightClass(h.verdict, h.harm_verdict);
             const title = h.annotation ? escHtml(h.annotation) : '';
             html += `<mark class="${cls}" data-start="${h.start}" data-end="${h.end}" data-annot-id="${h.id}" title="${title}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
             cursor = h.end;
@@ -188,26 +196,30 @@ function renderClinicalHighlights() {
         el.innerHTML = html;
     });
 
-    // Render annotation summaries below each comment
+    // Annotation summaries
     document.querySelectorAll('.annotations-list').forEach(el => { el.innerHTML = ''; });
     existingAnnotations.forEach(a => {
         const container = document.querySelector(`.annotations-list[data-section="${a.section}"][data-index="${a.item_index}"]`);
         if (!container) return;
-        const label = getLikertLabel(a.verdict);
-        const cls = getLikertBadgeClass(a.verdict);
+        const fLabel = getLikertLabel(a.verdict);
+        const fCls = getLikertBadgeClass(a.verdict);
+        const hLabel = getLikertLabel(a.harm_verdict);
+        const hCls = getLikertBadgeClass(a.harm_verdict);
         const div = document.createElement('div');
         div.className = 'annotation-tag';
         div.innerHTML = `
-            <span class="badge bg-${cls} me-1">${label}</span>
+            <span class="badge bg-${fCls} me-1" title="Factual accuracy">FA: ${fLabel}</span>
+            <span class="badge bg-${hCls} me-1" title="Potential harm">PH: ${hLabel}</span>
             <em>"${escHtml(a.text.substring(0, 80))}${a.text.length > 80 ? '...' : ''}"</em>
             ${a.annotation ? ` — ${escHtml(a.annotation)}` : ''}
-            ${a.harm_reasoning ? ` <span class="badge bg-danger ms-1">Harm noted</span>` : ''}
+            ${a.factual_reasoning ? ` <span class="badge bg-warning text-dark ms-1">Factual note</span>` : ''}
+            ${a.harm_reasoning ? ` <span class="badge bg-danger ms-1">Harm note</span>` : ''}
             <button class="btn btn-sm btn-link text-danger p-0 ms-2 delete-annot" data-id="${a.id}">&times;</button>
         `;
         container.appendChild(div);
     });
 
-    // Attach click handlers for highlights
+    // Click handlers for highlights
     document.querySelectorAll('.clinical-comment-text mark').forEach(mark => {
         mark.style.cursor = 'pointer';
         mark.addEventListener('click', function(e) {
@@ -247,17 +259,20 @@ function renderClinicalHighlights() {
     });
 }
 
-function getLikertClass(verdict) {
-    if (!verdict) return 'hl-unsure';
-    if (verdict === '1') return 'hl-likert-1';
-    if (verdict === '2') return 'hl-likert-2';
-    if (verdict === '3') return 'hl-likert-4';
-    if (verdict === '4') return 'hl-likert-5';
+function getHighlightClass(verdict, harmVerdict) {
+    // Color based on worst rating across both questions
+    // If either is 1 (Strongly Agree harmful) or 3/4 (Disagree/Strongly Disagree factual) → red/orange
+    const scores = [verdict, harmVerdict].filter(Boolean);
+    if (scores.includes('1')) return 'hl-likert-1';
+    if (scores.includes('2')) return 'hl-likert-2';
+    if (scores.includes('3')) return 'hl-likert-4';
+    if (scores.includes('4')) return 'hl-likert-5';
+    if (scores.includes('unsure')) return 'hl-unsure';
     return 'hl-unsure';
 }
 
 function getLikertLabel(verdict) {
-    const labels = {'1': '1 - Strongly Agree', '2': '2 - Agree', '3': '3 - Disagree', '4': '4 - Strongly Disagree', 'unsure': 'Unsure'};
+    const labels = {'1': 'Strongly Agree', '2': 'Agree', '3': 'Disagree', '4': 'Strongly Disagree', 'unsure': 'Unsure'};
     return labels[verdict] || verdict || '?';
 }
 
@@ -271,54 +286,66 @@ function getLikertBadgeClass(verdict) {
 
 function openClinicalModal(text, existing) {
     document.getElementById('clinAnnotSelectedText').textContent = text;
-    document.querySelectorAll('.likert-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.factual-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.harm-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('clinAnnotComment').value = '';
+    document.getElementById('factualReasoning').value = '';
+    document.getElementById('factualReasonSection').classList.add('d-none');
     document.getElementById('harmReasoning').value = '';
-    document.getElementById('harmSection').classList.add('d-none');
-    document.getElementById('unsureReasoning').value = '';
-    document.getElementById('unsureSection').classList.add('d-none');
+    document.getElementById('harmReasonSection').classList.add('d-none');
 
     if (existing) {
-        const scoreBtn = document.querySelector(`.likert-btn[data-score="${existing.verdict}"]`);
-        if (scoreBtn) scoreBtn.classList.add('active');
+        // Factual accuracy
+        const fBtn = document.querySelector(`.factual-btn[data-score="${existing.verdict}"]`);
+        if (fBtn) fBtn.classList.add('active');
+        if (['3', '4', 'unsure'].includes(existing.verdict)) {
+            document.getElementById('factualReasonSection').classList.remove('d-none');
+            document.getElementById('factualReasoning').value = existing.factual_reasoning || '';
+        }
+        // Potential harm
+        const hBtn = document.querySelector(`.harm-btn[data-score="${existing.harm_verdict}"]`);
+        if (hBtn) hBtn.classList.add('active');
+        if (['1', '2', 'unsure'].includes(existing.harm_verdict)) {
+            document.getElementById('harmReasonSection').classList.remove('d-none');
+            document.getElementById('harmReasoning').value = existing.harm_reasoning || '';
+        }
         document.getElementById('clinAnnotComment').value = existing.annotation || '';
-        if (['1', '2'].includes(existing.verdict) && existing.harm_reasoning) {
-            document.getElementById('harmReasoning').value = existing.harm_reasoning;
-            document.getElementById('harmSection').classList.remove('d-none');
-        }
-        if (existing.verdict === 'unsure' && existing.harm_reasoning) {
-            document.getElementById('unsureReasoning').value = existing.harm_reasoning;
-            document.getElementById('unsureSection').classList.remove('d-none');
-        }
     }
 
     clinModal.show();
 }
 
-// Likert button handlers
-document.querySelectorAll('.likert-btn').forEach(btn => {
+// Factual accuracy button handlers
+document.querySelectorAll('.factual-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-        document.querySelectorAll('.likert-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.factual-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
         const score = this.dataset.score;
-        if (['1', '2'].includes(score)) {
-            document.getElementById('harmSection').classList.remove('d-none');
-            document.getElementById('unsureSection').classList.add('d-none');
-            document.getElementById('unsureReasoning').value = '';
-        } else if (score === 'unsure') {
-            document.getElementById('unsureSection').classList.remove('d-none');
-            document.getElementById('harmSection').classList.add('d-none');
-            document.getElementById('harmReasoning').value = '';
+        if (['3', '4', 'unsure'].includes(score)) {
+            document.getElementById('factualReasonSection').classList.remove('d-none');
         } else {
-            document.getElementById('harmSection').classList.add('d-none');
-            document.getElementById('unsureSection').classList.add('d-none');
-            document.getElementById('harmReasoning').value = '';
-            document.getElementById('unsureReasoning').value = '';
+            document.getElementById('factualReasonSection').classList.add('d-none');
+            document.getElementById('factualReasoning').value = '';
         }
     });
 });
 
-// Allow text selection on comment text for new highlights
+// Harm button handlers
+document.querySelectorAll('.harm-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.harm-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        const score = this.dataset.score;
+        if (['1', '2', 'unsure'].includes(score)) {
+            document.getElementById('harmReasonSection').classList.remove('d-none');
+        } else {
+            document.getElementById('harmReasonSection').classList.add('d-none');
+            document.getElementById('harmReasoning').value = '';
+        }
+    });
+});
+
+// Text selection for new highlights
 document.querySelectorAll('.clinical-comment-text').forEach(el => {
     el.addEventListener('mouseup', function(e) {
         if (e.target.tagName === 'MARK') return;
@@ -345,20 +372,23 @@ document.querySelectorAll('.clinical-comment-text').forEach(el => {
     });
 });
 
-// Save clinical annotation
+// Save annotation
 document.getElementById('saveClinAnnotBtn').addEventListener('click', function() {
     if (!pendingClinAnnot) return;
-    const activeBtn = document.querySelector('.likert-btn.active');
-    if (!activeBtn) {
-        alert('Please select a Likert score or Unsure.');
+    const factualBtn = document.querySelector('.factual-btn.active');
+    const harmBtn = document.querySelector('.harm-btn.active');
+    if (!factualBtn || !harmBtn) {
+        alert('Please answer both questions (factual accuracy and potential harm).');
         return;
     }
 
-    const verdict = activeBtn.dataset.score;
+    const verdict = factualBtn.dataset.score;
+    const harmVerdict = harmBtn.dataset.score;
     const annotation = document.getElementById('clinAnnotComment').value;
-    const harmReasoning = ['1', '2'].includes(verdict)
-        ? document.getElementById('harmReasoning').value
-        : (verdict === 'unsure' ? document.getElementById('unsureReasoning').value : '');
+    const factualReasoning = ['3', '4', 'unsure'].includes(verdict)
+        ? document.getElementById('factualReasoning').value : '';
+    const harmReasoning = ['1', '2', 'unsure'].includes(harmVerdict)
+        ? document.getElementById('harmReasoning').value : '';
 
     const saveNew = () => {
         fetch(`/api/annotation/${POST_ID}/save`, {
@@ -373,6 +403,8 @@ document.getElementById('saveClinAnnotBtn').addEventListener('click', function()
                 text: pendingClinAnnot.text,
                 annotation: annotation,
                 verdict: verdict,
+                harm_verdict: harmVerdict,
+                factual_reasoning: factualReasoning,
                 harm_reasoning: harmReasoning,
                 is_gt_span: pendingClinAnnot.is_gt_span,
             }),
@@ -392,6 +424,8 @@ document.getElementById('saveClinAnnotBtn').addEventListener('click', function()
                     text: pendingClinAnnot.text,
                     annotation: annotation,
                     verdict: verdict,
+                    harm_verdict: harmVerdict,
+                    factual_reasoning: factualReasoning,
                     harm_reasoning: harmReasoning,
                     is_gt_span: pendingClinAnnot.is_gt_span,
                 });
