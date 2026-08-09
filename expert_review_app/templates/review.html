@@ -321,7 +321,12 @@ document.querySelectorAll('.factual-btn').forEach(btn => {
         document.querySelectorAll('.factual-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
         const score = this.dataset.score;
-        if (['3', '4', 'unsure'].includes(score)) {
+        const label = document.querySelector('#factualReasonSection label');
+        if (['3', '4'].includes(score)) {
+            label.textContent = 'Why is this factually inaccurate?';
+            document.getElementById('factualReasonSection').classList.remove('d-none');
+        } else if (score === 'unsure') {
+            label.textContent = 'Why are you unsure on the factual accuracy?';
             document.getElementById('factualReasonSection').classList.remove('d-none');
         } else {
             document.getElementById('factualReasonSection').classList.add('d-none');
@@ -336,7 +341,12 @@ document.querySelectorAll('.harm-btn').forEach(btn => {
         document.querySelectorAll('.harm-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
         const score = this.dataset.score;
-        if (['1', '2', 'unsure'].includes(score)) {
+        const label = document.querySelector('#harmReasonSection label');
+        if (['1', '2'].includes(score)) {
+            label.textContent = 'Why is this potentially harmful?';
+            document.getElementById('harmReasonSection').classList.remove('d-none');
+        } else if (score === 'unsure') {
+            label.textContent = 'Why are you unsure on the potential harmfulness?';
             document.getElementById('harmReasonSection').classList.remove('d-none');
         } else {
             document.getElementById('harmReasonSection').classList.add('d-none');
