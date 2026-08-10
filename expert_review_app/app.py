@@ -416,7 +416,7 @@ def admin_export_csv():
         "annotation_id", "expert", "post_id", "split", "comment_index",
         "highlighted_span", "start_offset", "end_offset",
         "factual_accuracy", "harm_potential",
-        "factual_reasoning", "harm_reasoning", "comment", "created_at"
+        "factual_reasoning", "harm_reasoning", "optional_comment", "created_at"
     ])
 
     for a in TextAnnotation.query.order_by(TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
