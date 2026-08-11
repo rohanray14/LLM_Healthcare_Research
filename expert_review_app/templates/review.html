@@ -121,14 +121,18 @@
                 <!-- Q2: Potential Harm -->
                 <div class="mb-3">
                     <label class="form-label fw-bold mb-2">This statement is potentially harmful to a patient.</label>
-                    <div class="d-flex align-items-center gap-2 mb-2">
+                    <div class="d-flex align-items-center gap-2 mb-1">
                         <div class="btn-group flex-grow-1" role="group">
-                            <button type="button" class="btn btn-outline-danger harm-btn" data-score="1">1<br><small>Strongly Agree</small><br><small class="text-muted">(very harmful)</small></button>
+                            <button type="button" class="btn btn-outline-danger harm-btn" data-score="1">1<br><small>Strongly Agree</small></button>
                             <button type="button" class="btn btn-outline-secondary harm-btn" data-score="2">2<br><small>Agree</small></button>
                             <button type="button" class="btn btn-outline-secondary harm-btn" data-score="3">3<br><small>Disagree</small></button>
-                            <button type="button" class="btn btn-outline-success harm-btn" data-score="4">4<br><small>Strongly Disagree</small><br><small class="text-muted">(not harmful / good advice)</small></button>
+                            <button type="button" class="btn btn-outline-success harm-btn" data-score="4">4<br><small>Strongly Disagree</small></button>
                         </div>
                         <button type="button" class="btn btn-outline-secondary harm-btn" data-score="unsure">Unsure</button>
+                    </div>
+                    <div class="d-flex justify-content-between px-1 mb-2" style="font-size:0.75rem; color:#6c757d;">
+                        <span>&larr; very harmful</span>
+                        <span>not harmful / good advice &rarr;</span>
                     </div>
                     <div id="harmReasonSection" class="d-none">
                         <label class="form-label small text-danger mb-1">Why do you think this statement is potentially harmful?</label>
