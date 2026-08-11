@@ -102,7 +102,10 @@
                     </div>
                     <div id="factualReasonSection" class="d-none">
                         <label class="form-label small text-danger mb-1">Why is this factually inaccurate?</label>
-                        <textarea id="factualReasoning" class="form-control form-control-sm" rows="2" placeholder="Explain..."></textarea>
+                        <div class="input-group">
+                            <textarea id="factualReasoning" class="form-control form-control-sm" rows="2" placeholder="Explain or use mic..."></textarea>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mic-btn" data-target="factualReasoning" title="Speech to text">&#127908;</button>
+                        </div>
                     </div>
                 </div>
 
@@ -122,7 +125,10 @@
                     </div>
                     <div id="harmReasonSection" class="d-none">
                         <label class="form-label small text-danger mb-1">Why is this potentially harmful?</label>
-                        <textarea id="harmReasoning" class="form-control form-control-sm" rows="2" placeholder="Explain the potential harm..."></textarea>
+                        <div class="input-group">
+                            <textarea id="harmReasoning" class="form-control form-control-sm" rows="2" placeholder="Explain or use mic..."></textarea>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mic-btn" data-target="harmReasoning" title="Speech to text">&#127908;</button>
+                        </div>
                     </div>
                 </div>
 
@@ -131,7 +137,10 @@
                 <!-- Comment -->
                 <div class="mb-2">
                     <label class="form-label small text-muted mb-1">Optional comment</label>
-                    <textarea id="clinAnnotComment" class="form-control form-control-sm" rows="2" placeholder="Add a comment..."></textarea>
+                    <div class="input-group">
+                        <textarea id="clinAnnotComment" class="form-control form-control-sm" rows="2" placeholder="Add a comment or use mic..."></textarea>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mic-btn" data-target="clinAnnotComment" title="Speech to text">&#127908;</button>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer py-1">
@@ -460,5 +469,77 @@ document.getElementById('saveClinAnnotBtn').addEventListener('click', function()
 
 // Initial render
 renderClinicalHighlights();
+
+// ═══════════════════════════════════════════════════════
+// SPEECH TO TEXT (Web Speech API)
+// ═══════════════════════════════════════════════════════
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+    let activeRecognition = null;
+    let activeBtn = null;
+
+    document.querySelectorAll('.mic-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const targetId = this.dataset.target;
+            const textarea = document.getElementById(targetId);
+
+            // If already recording this one, stop
+            if (activeBtn === this && activeRecognition) {
+                activeRecognition.stop();
+                return;
+            }
+
+            // Stop any existing recording
+            if (activeRecognition) {
+                activeRecognition.stop();
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            activeRecognition = recognition;
+            activeBtn = this;
+            this.style.background = '#dc3545';
+            this.style.color = '#fff';
+            this.innerHTML = '&#9209;'; // stop icon
+
+            let finalTranscript = textarea.value;
+
+            recognition.onresult = function(event) {
+                let interim = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += (finalTranscript ? ' ' : '') + event.results[i][0].transcript;
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+                textarea.value = finalTranscript + (interim ? ' ' + interim : '');
+            };
+
+            recognition.onend = function() {
+                textarea.value = finalTranscript;
+                btn.style.background = '';
+                btn.style.color = '';
+                btn.innerHTML = '&#127908;';
+                activeRecognition = null;
+                activeBtn = null;
+            };
+
+            recognition.onerror = function(e) {
+                if (e.error !== 'aborted') {
+                    console.error('Speech error:', e.error);
+                }
+            };
+
+            recognition.start();
+        });
+    });
+} else {
+    // Hide mic buttons if browser doesn't support speech recognition
+    document.querySelectorAll('.mic-btn').forEach(btn => btn.style.display = 'none');
+}
 </script>
 {% endblock %}
