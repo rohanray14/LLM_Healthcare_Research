@@ -54,11 +54,12 @@
                 <li><em>"5mg has always been plenty for me"</em>: a personal experience a patient might apply to themselves</li>
             </ul>
             <strong>Leave unhighlighted, for example:</strong>
-            <ul class="mb-0">
+            <ul class="mb-2">
                 <li><em>"I've been on subs for three years"</em>: personal context, nothing to assess</li>
                 <li><em>"Hang in there, you've got this"</em>: encouragement</li>
                 <li><em>"Ugh, this sub is the worst lately"</em>: venting or chit-chat</li>
             </ul>
+            <strong>Note:</strong> Some statements are subjective &mdash; go with your intuition.
         </div>
 
         {% for item in post.advice %}
@@ -86,11 +87,16 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <!-- Reminder of annotation context -->
+                <div class="alert alert-light border py-2 px-3 mb-3" style="font-size:0.82rem;">
+                    <strong>Remember:</strong> Imagine a patient reads this statement, believes it, and repeats it to you. Only highlight statements with something to assess &mdash; claims, advice, or experiences a patient might act on. Leave out personal context, encouragement, or chit-chat.
+                </div>
+
                 <div id="clinAnnotSelectedText" class="border rounded p-2 bg-light mb-3" style="font-size:0.85rem;max-height:120px;overflow-y:auto;"></div>
 
-                <!-- Q1: Factual Accuracy -->
+                <!-- Q1: Statement Accuracy -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold mb-2">Is this factually accurate?</label>
+                    <label class="form-label fw-bold mb-2">In your opinion, is this statement accurate?</label>
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <div class="btn-group flex-grow-1" role="group">
                             <button type="button" class="btn btn-outline-success factual-btn" data-score="1">1<br><small>Strongly Agree</small></button>
@@ -101,10 +107,10 @@
                         <button type="button" class="btn btn-outline-secondary factual-btn" data-score="unsure">Unsure</button>
                     </div>
                     <div id="factualReasonSection" class="d-none">
-                        <label class="form-label small text-danger mb-1">Why is this factually inaccurate?</label>
+                        <label class="form-label small text-danger mb-1">Why do you think this statement is inaccurate?</label>
                         <div class="input-group">
-                            <textarea id="factualReasoning" class="form-control form-control-sm" rows="2" placeholder="Explain or use mic..."></textarea>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mic-btn" data-target="factualReasoning" title="Speech to text">&#127908;</button>
+                            <textarea id="factualReasoning" class="form-control form-control-sm" rows="2" placeholder="Tap the mic and speak your answer..."></textarea>
+                            <button type="button" class="btn btn-sm btn-outline-danger mic-btn" data-target="factualReasoning" title="Tap to dictate your answer">&#127908; Speak</button>
                         </div>
                     </div>
                 </div>
@@ -113,21 +119,21 @@
 
                 <!-- Q2: Potential Harm -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold mb-2">Is this potentially harmful?</label>
+                    <label class="form-label fw-bold mb-2">In your opinion, is this statement potentially harmful?</label>
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <div class="btn-group flex-grow-1" role="group">
-                            <button type="button" class="btn btn-outline-success harm-btn" data-score="1">1<br><small>Strongly Agree</small></button>
+                            <button type="button" class="btn btn-outline-danger harm-btn" data-score="1">1<br><small>Strongly Agree</small><br><small class="text-muted">(very harmful)</small></button>
                             <button type="button" class="btn btn-outline-secondary harm-btn" data-score="2">2<br><small>Agree</small></button>
-                            <button type="button" class="btn btn-outline-orange harm-btn" data-score="3">3<br><small>Disagree</small></button>
-                            <button type="button" class="btn btn-outline-danger harm-btn" data-score="4">4<br><small>Strongly Disagree</small></button>
+                            <button type="button" class="btn btn-outline-secondary harm-btn" data-score="3">3<br><small>Disagree</small></button>
+                            <button type="button" class="btn btn-outline-success harm-btn" data-score="4">4<br><small>Strongly Disagree</small><br><small class="text-muted">(not harmful / good advice)</small></button>
                         </div>
                         <button type="button" class="btn btn-outline-secondary harm-btn" data-score="unsure">Unsure</button>
                     </div>
                     <div id="harmReasonSection" class="d-none">
-                        <label class="form-label small text-danger mb-1">Why is this potentially harmful?</label>
+                        <label class="form-label small text-danger mb-1">Why do you think this statement is potentially harmful?</label>
                         <div class="input-group">
-                            <textarea id="harmReasoning" class="form-control form-control-sm" rows="2" placeholder="Explain or use mic..."></textarea>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mic-btn" data-target="harmReasoning" title="Speech to text">&#127908;</button>
+                            <textarea id="harmReasoning" class="form-control form-control-sm" rows="2" placeholder="Tap the mic and speak your answer..."></textarea>
+                            <button type="button" class="btn btn-sm btn-outline-danger mic-btn" data-target="harmReasoning" title="Tap to dictate your answer">&#127908; Speak</button>
                         </div>
                     </div>
                 </div>
@@ -138,8 +144,8 @@
                 <div class="mb-2">
                     <label class="form-label small text-muted mb-1">Optional comment</label>
                     <div class="input-group">
-                        <textarea id="clinAnnotComment" class="form-control form-control-sm" rows="2" placeholder="Add a comment or use mic..."></textarea>
-                        <button type="button" class="btn btn-sm btn-outline-secondary mic-btn" data-target="clinAnnotComment" title="Speech to text">&#127908;</button>
+                        <textarea id="clinAnnotComment" class="form-control form-control-sm" rows="2" placeholder="Tap the mic and speak your answer..."></textarea>
+                        <button type="button" class="btn btn-sm btn-outline-danger mic-btn" data-target="clinAnnotComment" title="Tap to dictate your answer">&#127908; Speak</button>
                     </div>
                 </div>
             </div>
@@ -332,10 +338,10 @@ document.querySelectorAll('.factual-btn').forEach(btn => {
         const score = this.dataset.score;
         const label = document.querySelector('#factualReasonSection label');
         if (['3', '4'].includes(score)) {
-            label.textContent = 'Why is this factually inaccurate?';
+            label.textContent = 'Why do you think this statement is inaccurate?';
             document.getElementById('factualReasonSection').classList.remove('d-none');
         } else if (score === 'unsure') {
-            label.textContent = 'Why are you unsure on the factual accuracy?';
+            label.textContent = 'Why are you unsure about the accuracy of this statement?';
             document.getElementById('factualReasonSection').classList.remove('d-none');
         } else {
             document.getElementById('factualReasonSection').classList.add('d-none');
@@ -352,10 +358,10 @@ document.querySelectorAll('.harm-btn').forEach(btn => {
         const score = this.dataset.score;
         const label = document.querySelector('#harmReasonSection label');
         if (['1', '2'].includes(score)) {
-            label.textContent = 'Why is this potentially harmful?';
+            label.textContent = 'Why do you think this statement is potentially harmful?';
             document.getElementById('harmReasonSection').classList.remove('d-none');
         } else if (score === 'unsure') {
-            label.textContent = 'Why are you unsure on the potential harmfulness?';
+            label.textContent = 'Why are you unsure about the potential harm of this statement?';
             document.getElementById('harmReasonSection').classList.remove('d-none');
         } else {
             document.getElementById('harmReasonSection').classList.add('d-none');
@@ -364,30 +370,46 @@ document.querySelectorAll('.harm-btn').forEach(btn => {
     });
 });
 
+// Smart selection: snap to word boundaries
+function snapToWordBounds(fullText, start, end) {
+    // Expand start backwards to beginning of word (letters, digits, apostrophes, hyphens)
+    while (start > 0 && /[\w'\u2019-]/.test(fullText[start - 1])) start--;
+    // Expand end forwards to end of word
+    while (end < fullText.length && /[\w'\u2019-]/.test(fullText[end])) end++;
+    // Trim trailing/leading whitespace from the snapped range
+    while (start < end && /\s/.test(fullText[start])) start++;
+    while (end > start && /\s/.test(fullText[end - 1])) end--;
+    return { start, end, text: fullText.slice(start, end) };
+}
+
 // Text selection for new highlights
 document.querySelectorAll('.clinical-comment-text').forEach(el => {
     el.addEventListener('mouseup', function(e) {
         if (e.target.tagName === 'MARK') return;
         const sel = window.getSelection();
-        const text = sel.toString().trim();
-        if (!text || text.length < 3) return;
+        const rawText = sel.toString().trim();
+        if (!rawText || rawText.length < 3) return;
 
         const range = sel.getRangeAt(0);
         const preRange = document.createRange();
         preRange.selectNodeContents(this);
         preRange.setEnd(range.startContainer, range.startOffset);
-        const start = preRange.toString().length;
-        const end = start + text.length;
+        let start = preRange.toString().length;
+        let end = start + rawText.length;
+
+        // Get the full comment text for smart snapping
+        const fullText = this.textContent || this.innerText;
+        const snapped = snapToWordBounds(fullText, start, end);
 
         pendingClinAnnot = {
             section: this.dataset.section,
             index: parseInt(this.dataset.index),
-            start, end, text,
+            start: snapped.start, end: snapped.end, text: snapped.text,
             is_gt_span: false,
             existing_id: null,
         };
 
-        openClinicalModal(text, null);
+        openClinicalModal(snapped.text, null);
     });
 });
 
