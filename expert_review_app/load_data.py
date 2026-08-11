@@ -181,13 +181,15 @@ def load_all():
     posts = {}
     comments = {}
 
-    for csv_name, split in [("dev.csv", "dev"), ("test.csv", "test")]:
+    for csv_name, split in [("train.csv", "train"), ("dev.csv", "dev"), ("test.csv", "test")]:
         path = BASE / csv_name
         if not path.exists():
             continue
         grouped = _load_csv(path)
         p, c = _build_posts_and_comments(grouped, split)
-        posts.update(p)
+        for key, val in p.items():
+            if key not in posts:
+                posts[key] = val
         for pid, cdata in c.items():
             if pid not in comments:
                 comments[pid] = cdata
