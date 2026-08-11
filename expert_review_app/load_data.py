@@ -134,9 +134,17 @@ def _build_posts_and_comments(grouped, split_name):
     posts = {}
     comments = {}
 
+    # Semantic markers that qualify a comment for expert review
+    REQUIRED_MARKERS = {"CLAIM", "HEDGE", "HEDGED", "EXPER"}
+
     for pid, info in grouped.items():
         advice_items = []
         for c in info["comments"]:
+            # Filter: only include comments with at least one required marker
+            codes = {t.strip().upper() for t in c["l1_coding"].split(",") if t.strip()}
+            if not codes & REQUIRED_MARKERS:
+                continue
+
             gt_spans = _compute_gt_spans(c["comment_body"], c["span_if_claim"])
             advice_items.append({
                 "advice": c["comment_body"],
@@ -146,6 +154,9 @@ def _build_posts_and_comments(grouped, split_name):
                 "counterpoints": [c["nikil_notes"]] if c["nikil_notes"] else [],
                 "gt_spans": gt_spans,
             })
+
+        if not advice_items:
+            continue  # skip posts with no qualifying comments
 
         key = (pid, MODEL_NAME)
         posts[key] = {

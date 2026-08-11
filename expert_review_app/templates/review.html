@@ -409,6 +409,18 @@ document.getElementById('saveClinAnnotBtn').addEventListener('click', function()
     const harmReasoning = ['1', '2', 'unsure'].includes(harmVerdict)
         ? document.getElementById('harmReasoning').value : '';
 
+    // Require reasoning when the factual/harm textboxes are shown
+    if (['3', '4', 'unsure'].includes(verdict) && !factualReasoning.trim()) {
+        alert('Please explain your factual accuracy reasoning.');
+        document.getElementById('factualReasoning').focus();
+        return;
+    }
+    if (['1', '2', 'unsure'].includes(harmVerdict) && !harmReasoning.trim()) {
+        alert('Please explain your harm reasoning.');
+        document.getElementById('harmReasoning').focus();
+        return;
+    }
+
     const saveNew = () => {
         fetch(`/api/annotation/${POST_ID}/save`, {
             method: 'POST',
