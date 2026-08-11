@@ -43,23 +43,24 @@
         <div class="alert alert-info py-2 mb-3" style="font-size:0.88rem;">
             <strong>Instructions:</strong> The following are top-level comments that directly reply to a post on r/Suboxone. Imagine one of your patients reads each comment, believes every statement in it, and repeats them to you.
             <br><br>
-            <strong>Highlight</strong> any statement with content to evaluate for its <u>factual accuracy</u> and/or <u>potential harm</u>, and then rate each on both.
+            <strong>Highlight</strong> any statement with content to evaluate for its <u>accuracy</u> and/or <u>potential harm</u>, and then rate each on both.
             <br><br>
-            <strong>Leave unhighlighted</strong> statements with nothing to evaluate: personal context, an event, venting, or chit-chat.
+            <strong>Leave unhighlighted</strong> statements with nothing to evaluate: personal context, mere opinions, implicit inferences, an event, venting, encouragement, or chit-chat.
             <br><br>
-            <strong>Assess, for example:</strong>
+            <strong>The following are examples of statements you would want to evaluate:</strong>
             <ul class="mb-2">
-                <li><em>"Suboxone only works when you take it in the morning"</em>: a statement of fact</li>
-                <li><em>"Do <strong>NOT</strong> switch to opioids to try to get off Suboxone"</em>: advice</li>
-                <li><em>"5mg has always been plenty for me"</em>: a personal experience a patient might apply to themselves</li>
+                <li><em>"Suboxone only works when you take it in the morning"</em> &mdash; a statement of fact</li>
+                <li><em>"Do <strong>NOT</strong> switch to opioids to try to get off Suboxone"</em> &mdash; advice</li>
+                <li><em>"5mg has always been plenty for me"</em> &mdash; a personal experience a patient might apply to themselves</li>
             </ul>
-            <strong>Leave unhighlighted, for example:</strong>
+            <strong>The following are examples of statements you would <u>not</u> evaluate (leave unhighlighted):</strong>
             <ul class="mb-2">
-                <li><em>"I've been on subs for three years"</em>: personal context, nothing to assess</li>
-                <li><em>"Hang in there, you've got this"</em>: encouragement</li>
-                <li><em>"Ugh, this sub is the worst lately"</em>: venting or chit-chat</li>
+                <li><em>"I've been on subs for three years"</em> &mdash; personal context, nothing to assess</li>
+                <li><em>"Hang in there, you've got this"</em> &mdash; encouragement</li>
+                <li><em>"Ugh, this sub is the worst lately"</em> &mdash; venting or chit-chat</li>
+                <li><em>"I feel like it's just not worth it"</em> &mdash; a mere opinion or implicit inference</li>
             </ul>
-            <strong>Note:</strong> Some statements are subjective &mdash; go with your intuition.
+            <strong>Note:</strong> Some statements are subjective &mdash; follow your interpretation based on the comment context, and go with your intuition.
         </div>
 
         {% for item in post.advice %}
@@ -89,14 +90,14 @@
             <div class="modal-body">
                 <!-- Reminder of annotation context -->
                 <div class="alert alert-light border py-2 px-3 mb-3" style="font-size:0.82rem;">
-                    <strong>Remember:</strong> Imagine a patient reads this statement, believes it, and repeats it to you. Only highlight statements with something to assess &mdash; claims, advice, or experiences a patient might act on. Leave out personal context, encouragement, or chit-chat.
+                    <strong>Remember:</strong> Imagine a patient reads this statement, believes it, and repeats it to you. Only highlight statements with something to assess &mdash; claims, advice, or experiences a patient might act on. Leave out personal context, mere opinions, encouragement, venting, or chit-chat.
                 </div>
 
                 <div id="clinAnnotSelectedText" class="border rounded p-2 bg-light mb-3" style="font-size:0.85rem;max-height:120px;overflow-y:auto;"></div>
 
                 <!-- Q1: Statement Accuracy -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold mb-2">In your opinion, is this statement accurate?</label>
+                    <label class="form-label fw-bold mb-2">This statement is accurate or aligned with best practices.</label>
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <div class="btn-group flex-grow-1" role="group">
                             <button type="button" class="btn btn-outline-success factual-btn" data-score="1">1<br><small>Strongly Agree</small></button>
@@ -119,7 +120,7 @@
 
                 <!-- Q2: Potential Harm -->
                 <div class="mb-3">
-                    <label class="form-label fw-bold mb-2">In your opinion, is this statement potentially harmful?</label>
+                    <label class="form-label fw-bold mb-2">This statement is potentially harmful to a patient.</label>
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <div class="btn-group flex-grow-1" role="group">
                             <button type="button" class="btn btn-outline-danger harm-btn" data-score="1">1<br><small>Strongly Agree</small><br><small class="text-muted">(very harmful)</small></button>
@@ -142,9 +143,9 @@
 
                 <!-- Comment -->
                 <div class="mb-2">
-                    <label class="form-label small text-muted mb-1">Optional comment</label>
+                    <label class="form-label small text-muted mb-1">Optional comment &mdash; feel free to elaborate, rant, or add any context that comes to mind!</label>
                     <div class="input-group">
-                        <textarea id="clinAnnotComment" class="form-control form-control-sm" rows="2" placeholder="Tap the mic and speak your answer..."></textarea>
+                        <textarea id="clinAnnotComment" class="form-control form-control-sm" rows="2" placeholder="Share any thoughts, context, or reasoning &mdash; the more detail the better! Tap the mic to speak."></textarea>
                         <button type="button" class="btn btn-sm btn-outline-danger mic-btn" data-target="clinAnnotComment" title="Tap to dictate your answer">&#127908; Speak</button>
                     </div>
                 </div>
