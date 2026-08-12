@@ -464,13 +464,15 @@ def admin():
     for e in experts:
         assignments[e.id] = [a.post_id for a in Assignment.query.filter_by(expert_id=e.id).all()]
 
-    # Build map of post_id -> expert username (for showing who owns each post)
+    # Build map of post_id -> list of expert usernames assigned to it
     taken_by = {}
     for e in experts:
         if e.username == "admin":
             continue
         for pid in assignments.get(e.id, []):
-            taken_by[pid] = e.username
+            if pid not in taken_by:
+                taken_by[pid] = []
+            taken_by[pid].append(e.username)
 
     # Build post metadata for display in assignment lists
     post_meta = {}
@@ -552,12 +554,11 @@ def admin_assign():
     # Remove existing assignments for this expert
     Assignment.query.filter_by(expert_id=expert_id).delete()
 
-    # Add new assignments (skip posts already assigned to someone else)
+    # Add new assignments (multiple experts can share the same post)
     for pid in post_ids:
-        existing = Assignment.query.filter_by(post_id=pid).first()
-        if existing and existing.expert_id != expert_id:
-            continue  # already taken by another expert
-        db.session.add(Assignment(expert_id=expert_id, post_id=pid))
+        existing = Assignment.query.filter_by(expert_id=expert_id, post_id=pid).first()
+        if not existing:
+            db.session.add(Assignment(expert_id=expert_id, post_id=pid))
 
     db.session.commit()
     return jsonify({"ok": True})

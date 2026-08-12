@@ -72,19 +72,18 @@
         </div>
         <div class="post-checklist border rounded p-2" data-expert-id="{{ expert.id }}" style="max-height:300px;overflow-y:auto;">
             {% for pid in all_post_ids %}
-            {% set owner = taken_by.get(pid) %}
+            {% set owners = taken_by.get(pid, []) %}
+            {% set other_owners = owners | reject('equalto', expert.username) | list %}
             {% set is_mine = pid in assignments.get(expert.id, []) %}
-            {% set is_taken = owner and owner != expert.username %}
             <div class="form-check post-check-item" data-post-id="{{ pid }}">
                 <input class="form-check-input post-checkbox" type="checkbox" value="{{ pid }}" id="chk-{{ expert.id }}-{{ loop.index }}"
-                    {% if is_mine %}checked{% endif %}
-                    {% if is_taken %}disabled{% endif %}>
+                    {% if is_mine %}checked{% endif %}>
                 {% set meta = post_meta.get(pid, {}) %}
-                <label class="form-check-label small {% if is_taken %}text-muted{% endif %}" for="chk-{{ expert.id }}-{{ loop.index }}">
+                <label class="form-check-label small" for="chk-{{ expert.id }}-{{ loop.index }}">
                     <span class="text-muted">#{{ loop.index }}</span> {{ pid }}
                     <span class="text-muted ms-1">({{ meta.get('num_comments', '?') }} comments)</span>
                     <span class="badge bg-light text-dark ms-1" style="font-size:0.7rem;">{{ meta.get('themes', '') }}</span>
-                    {% if is_taken %}<span class="badge bg-secondary ms-1">{{ owner }}</span>{% endif %}
+                    {% for o in other_owners %}<span class="badge bg-info text-dark ms-1">{{ o }}</span>{% endfor %}
                 </label>
             </div>
             {% endfor %}
