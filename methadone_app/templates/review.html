@@ -38,26 +38,14 @@
     <!-- RIGHT: Comments with annotation -->
     <div class="col-lg-8">
         <div class="alert alert-info py-2 mb-3" style="font-size:0.88rem;">
-            <strong>Instructions:</strong> The following are top-level comments that directly reply to a post on r/Methadone. Imagine one of your patients reads each comment, believes every statement in it, and repeats them to you.
+            <strong>Instructions:</strong> For each comment, assign the appropriate <strong>L1 codes</strong> using the toggle buttons. If a comment contains a <strong>claim</strong>, highlight the specific claim text &mdash; this will auto-add the CLAIM tag.
             <br><br>
-            <strong>Highlight</strong> any statement with content to evaluate for its <u>accuracy</u> and/or <u>potential harm</u>, and then rate each on both.
-            <br><br>
-            <strong>Leave unhighlighted</strong> statements with nothing to evaluate: personal context, mere opinions, implicit inferences, an event, venting, encouragement, or chit-chat.
-            <br><br>
-            <strong>The following are examples of statements you would want to evaluate:</strong>
-            <ul class="mb-2">
-                <li><em>"You shouldn't go above 80mg, that's too high"</em> &mdash; a statement of fact</li>
-                <li><em>"Never mix benzos with methadone"</em> &mdash; advice</li>
-                <li><em>"Splitting my dose made a huge difference for pain"</em> &mdash; a personal experience a patient might apply to themselves</li>
+            <strong>Code definitions:</strong>
+            <ul class="mb-1 mt-1">
+                {% for code, info in comment_codes.items() %}
+                <li><strong>{{ code }}</strong> &mdash; {{ info.description }}</li>
+                {% endfor %}
             </ul>
-            <strong>The following are examples of statements you would <u>not</u> evaluate (leave unhighlighted):</strong>
-            <ul class="mb-2">
-                <li><em>"I've been on methadone for five years"</em> &mdash; personal context, nothing to assess</li>
-                <li><em>"Good luck, you got this!"</em> &mdash; encouragement</li>
-                <li><em>"My clinic is the worst"</em> &mdash; venting or chit-chat</li>
-                <li><em>"I just feel like it's not working anymore"</em> &mdash; a mere opinion or implicit inference</li>
-            </ul>
-            <strong>Note:</strong> Some statements are subjective &mdash; follow your interpretation based on the comment context, and go with your intuition.
         </div>
 
         {% for item in post.advice %}
@@ -66,98 +54,35 @@
                 <h6 class="mb-0">Comment {{ loop.index }}</h6>
             </div>
             <div class="card-body">
+                <!-- Comment-level codes -->
+                <div class="comment-codes-bar mb-2" data-index="{{ loop.index0 }}">
+                    {% set outer_idx = loop.index0 %}
+                    {% for code, info in comment_codes.items() %}
+                    {% if not info.get('is_span_code') %}
+                    <button type="button"
+                            class="btn btn-sm code-toggle-btn me-1 mb-1"
+                            data-code="{{ code }}"
+                            data-index="{{ outer_idx }}"
+                            style="border: 2px solid {{ info.border_color }}; background: transparent; color: {{ info.border_color }}; font-size: 0.78rem;"
+                            title="{{ info.description }}">
+                        {{ info.label }}
+                    </button>
+                    {% endif %}
+                    {% endfor %}
+                    <!-- CLAIM badge (auto, not clickable) -->
+                    <span class="badge claim-badge d-none ms-1 mb-1"
+                          data-index="{{ loop.index0 }}"
+                          style="background: {{ comment_codes.CLAIM.color }}; color: {{ comment_codes.CLAIM.border_color }}; border: 1px solid {{ comment_codes.CLAIM.border_color }}; font-size: 0.78rem; vertical-align: middle;">
+                        CLAIM (auto)
+                    </span>
+                </div>
                 <div class="annotatable-text clinical-comment-text"
-                     data-index="{{ loop.index0 }}">{{ item.advice }}</div>
+                     data-index="{{ loop.index0 }}"
+                     style="cursor: text;">{{ item.advice }}</div>
                 <div class="annotations-list mt-2" data-index="{{ loop.index0 }}"></div>
             </div>
         </div>
         {% endfor %}
-    </div>
-</div>
-
-<!-- Clinical Annotation Modal -->
-<div class="modal fade" id="clinicalAnnotModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header py-2">
-                <h6 class="modal-title">Clinical Expert Annotation</h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Reminder -->
-                <div class="alert alert-light border py-2 px-3 mb-3" style="font-size:0.82rem;">
-                    <strong>Remember:</strong> Imagine a patient reads this statement, believes it, and repeats it to you. Only highlight statements with something to assess &mdash; claims, advice, or experiences a patient might act on. Leave out personal context, mere opinions, encouragement, venting, or chit-chat.
-                </div>
-
-                <div id="clinAnnotSelectedText" class="border rounded p-2 bg-light mb-3" style="font-size:0.85rem;max-height:120px;overflow-y:auto;"></div>
-
-                <!-- Q1: Accuracy -->
-                <div class="mb-3">
-                    <label class="form-label fw-bold mb-2">I think this statement is accurate.</label>
-                    <div class="d-flex align-items-center gap-2 mb-1">
-                        <div class="btn-group flex-grow-1" role="group">
-                            <button type="button" class="btn btn-outline-success factual-btn" data-score="1">1<br><small>Strongly Agree</small></button>
-                            <button type="button" class="btn btn-outline-secondary factual-btn" data-score="2">2<br><small>Agree</small></button>
-                            <button type="button" class="btn btn-outline-orange factual-btn" data-score="3">3<br><small>Disagree</small></button>
-                            <button type="button" class="btn btn-outline-danger factual-btn" data-score="4">4<br><small>Strongly Disagree</small></button>
-                        </div>
-                        <button type="button" class="btn btn-outline-secondary factual-btn" data-score="unsure">Unsure</button>
-                    </div>
-                    <div class="d-flex justify-content-between px-1 mb-2" style="font-size:0.75rem; color:#6c757d;">
-                        <span>&larr; accurate</span>
-                        <span>inaccurate &rarr;</span>
-                    </div>
-                    <div id="factualReasonSection" class="d-none">
-                        <label class="form-label small text-danger mb-1">Why do you think this statement is inaccurate?</label>
-                        <div class="input-group">
-                            <textarea id="factualReasoning" class="form-control form-control-sm" rows="2" placeholder="Tap the mic and speak your answer..."></textarea>
-                            <button type="button" class="btn btn-sm btn-outline-danger mic-btn" data-target="factualReasoning" title="Tap to dictate your answer">&#127908; Speak</button>
-                        </div>
-                    </div>
-                </div>
-
-                <hr>
-
-                <!-- Q2: Harm -->
-                <div class="mb-3">
-                    <label class="form-label fw-bold mb-2">I think this statement is potentially harmful to a patient.</label>
-                    <div class="d-flex align-items-center gap-2 mb-1">
-                        <div class="btn-group flex-grow-1" role="group">
-                            <button type="button" class="btn btn-outline-danger harm-btn" data-score="1">1<br><small>Strongly Agree</small></button>
-                            <button type="button" class="btn btn-outline-secondary harm-btn" data-score="2">2<br><small>Agree</small></button>
-                            <button type="button" class="btn btn-outline-secondary harm-btn" data-score="3">3<br><small>Disagree</small></button>
-                            <button type="button" class="btn btn-outline-success harm-btn" data-score="4">4<br><small>Strongly Disagree</small></button>
-                        </div>
-                        <button type="button" class="btn btn-outline-secondary harm-btn" data-score="unsure">Unsure</button>
-                    </div>
-                    <div class="d-flex justify-content-between px-1 mb-2" style="font-size:0.75rem; color:#6c757d;">
-                        <span>&larr; very harmful</span>
-                        <span>not harmful &rarr;</span>
-                    </div>
-                    <div id="harmReasonSection" class="d-none">
-                        <label class="form-label small text-danger mb-1">Why do you think this statement is potentially harmful?</label>
-                        <div class="input-group">
-                            <textarea id="harmReasoning" class="form-control form-control-sm" rows="2" placeholder="Tap the mic and speak your answer..."></textarea>
-                            <button type="button" class="btn btn-sm btn-outline-danger mic-btn" data-target="harmReasoning" title="Tap to dictate your answer">&#127908; Speak</button>
-                        </div>
-                    </div>
-                </div>
-
-                <hr>
-
-                <!-- Comment -->
-                <div class="mb-2">
-                    <label class="form-label small text-muted mb-1">Optional comment &mdash; feel free to elaborate, rant, or add any context that comes to mind!</label>
-                    <div class="input-group">
-                        <textarea id="clinAnnotComment" class="form-control form-control-sm" rows="2" placeholder="Share any thoughts, context, or reasoning &mdash; the more detail the better! Tap the mic to speak."></textarea>
-                        <button type="button" class="btn btn-sm btn-outline-danger mic-btn" data-target="clinAnnotComment" title="Tap to dictate your answer">&#127908; Speak</button>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer py-1">
-                <button type="button" class="btn btn-sm btn-primary" id="saveClinAnnotBtn">Save Annotation</button>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -168,6 +93,8 @@
 const POST_ID = "{{ post.post_id }}";
 const statusEl = document.getElementById('saveStatus');
 let existingAnnotations = {{ existing_annotations | tojson }};
+const COMMENT_CODES = {{ comment_codes | tojson }};
+let codesByComment = {{ codes_by_comment | tojson }};
 
 function escHtml(t) {
     const d = document.createElement('div');
@@ -175,19 +102,15 @@ function escHtml(t) {
     return d.innerHTML;
 }
 
-const clinModal = new bootstrap.Modal(document.getElementById('clinicalAnnotModal'));
-let pendingClinAnnot = null;
+// ── Span highlights (for CLAIM marking) ──
 
-function renderClinicalHighlights() {
+function renderHighlights() {
     document.querySelectorAll('.clinical-comment-text').forEach(el => {
         const index = parseInt(el.dataset.index);
         const rawText = el.textContent || el.innerText;
 
         const savedAnnots = existingAnnotations.filter(a => a.item_index === index);
-        let highlights = [];
-        for (const a of savedAnnots) {
-            highlights.push({ start: a.start, end: a.end, verdict: a.verdict, harm_verdict: a.harm_verdict, id: a.id, annotation: a.annotation });
-        }
+        let highlights = savedAnnots.map(a => ({ start: a.start, end: a.end, id: a.id }));
         highlights.sort((a, b) => a.start - b.start);
 
         const merged = [];
@@ -196,171 +119,65 @@ function renderClinicalHighlights() {
             merged.push(h);
         }
 
-        let html = '';
-        let cursor = 0;
+        let html = '', cursor = 0;
         for (const h of merged) {
             if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
-            const cls = getHighlightClass(h.verdict, h.harm_verdict);
-            const title = h.annotation ? escHtml(h.annotation) : '';
-            html += `<mark class="${cls}" data-start="${h.start}" data-end="${h.end}" data-annot-id="${h.id}" title="${title}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
+            html += `<mark class="hl-claim" data-start="${h.start}" data-end="${h.end}" data-annot-id="${h.id}" title="Highlighted claim span">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
             cursor = h.end;
         }
         if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
         el.innerHTML = html;
     });
 
-    // Annotation summaries
+    // Span summaries under each comment
     document.querySelectorAll('.annotations-list').forEach(el => { el.innerHTML = ''; });
     existingAnnotations.forEach(a => {
         const container = document.querySelector(`.annotations-list[data-index="${a.item_index}"]`);
         if (!container) return;
-        const fLabel = getLikertLabel(a.verdict);
-        const fCls = getLikertBadgeClass(a.verdict);
-        const hLabel = getLikertLabel(a.harm_verdict);
-        const hCls = getLikertBadgeClass(a.harm_verdict);
         const div = document.createElement('div');
         div.className = 'annotation-tag';
         div.innerHTML = `
-            <span class="badge bg-${fCls} me-1" title="Accuracy">AC: ${fLabel}</span>
-            <span class="badge bg-${hCls} me-1" title="Potential harm">PH: ${hLabel}</span>
-            <em>"${escHtml(a.text.substring(0, 80))}${a.text.length > 80 ? '...' : ''}"</em>
-            ${a.annotation ? ` — ${escHtml(a.annotation)}` : ''}
-            ${a.factual_reasoning ? ` <span class="badge bg-warning text-dark ms-1">Accuracy note</span>` : ''}
-            ${a.harm_reasoning ? ` <span class="badge bg-danger ms-1">Harm note</span>` : ''}
+            <span class="badge" style="background:#fee2e2; color:#ef4444; border:1px solid #ef4444;">CLAIM</span>
+            <em class="ms-1">"${escHtml(a.text.substring(0, 100))}${a.text.length > 100 ? '...' : ''}"</em>
             <button class="btn btn-sm btn-link text-danger p-0 ms-2 delete-annot" data-id="${a.id}">&times;</button>
         `;
         container.appendChild(div);
     });
 
-    // Click handlers for highlights
+    // Click-to-delete on highlighted marks
     document.querySelectorAll('.clinical-comment-text mark').forEach(mark => {
         mark.style.cursor = 'pointer';
         mark.addEventListener('click', function(e) {
             e.stopPropagation();
-            const el = this.closest('.clinical-comment-text');
-            const start = parseInt(this.dataset.start);
-            const end = parseInt(this.dataset.end);
-            const text = this.textContent;
             const annotId = this.dataset.annotId;
-
-            pendingClinAnnot = {
-                index: parseInt(el.dataset.index),
-                start, end, text,
-                existing_id: annotId && annotId !== 'undefined' ? parseInt(annotId) : null,
-            };
-
-            const existing = annotId ? existingAnnotations.find(a => a.id == annotId) : null;
-            openClinicalModal(text, existing);
+            if (!annotId || annotId === 'undefined') return;
+            if (!confirm('Remove this highlighted span?')) return;
+            deleteSpan(parseInt(annotId));
         });
     });
 
-    // Delete buttons
+    // Delete buttons in summaries
     document.querySelectorAll('.delete-annot').forEach(btn => {
         btn.addEventListener('click', function() {
-            const id = this.dataset.id;
-            fetch(`/api/annotation/${id}/delete`, { method: 'POST' })
-            .then(r => r.json())
-            .then(d => {
-                if (d.ok) {
-                    existingAnnotations = existingAnnotations.filter(a => a.id != id);
-                    renderClinicalHighlights();
-                }
-            });
+            deleteSpan(parseInt(this.dataset.id));
         });
     });
 }
 
-function getHighlightClass(verdict, harmVerdict) {
-    const scores = [verdict, harmVerdict].filter(Boolean);
-    if (scores.includes('1')) return 'hl-likert-1';
-    if (scores.includes('2')) return 'hl-likert-2';
-    if (scores.includes('3')) return 'hl-likert-4';
-    if (scores.includes('4')) return 'hl-likert-5';
-    if (scores.includes('unsure')) return 'hl-unsure';
-    return 'hl-unsure';
-}
-
-function getLikertLabel(verdict) {
-    const labels = {'1': 'Strongly Agree', '2': 'Agree', '3': 'Disagree', '4': 'Strongly Disagree', 'unsure': 'Unsure'};
-    return labels[verdict] || verdict || '?';
-}
-
-function getLikertBadgeClass(verdict) {
-    if (verdict === '1') return 'success';
-    if (verdict === '2') return 'info';
-    if (verdict === '3') return 'orange';
-    if (verdict === '4') return 'danger';
-    return 'secondary';
-}
-
-function openClinicalModal(text, existing) {
-    document.getElementById('clinAnnotSelectedText').textContent = text;
-    document.querySelectorAll('.factual-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.harm-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('clinAnnotComment').value = '';
-    document.getElementById('factualReasoning').value = '';
-    document.getElementById('factualReasonSection').classList.add('d-none');
-    document.getElementById('harmReasoning').value = '';
-    document.getElementById('harmReasonSection').classList.add('d-none');
-
-    if (existing) {
-        const fBtn = document.querySelector(`.factual-btn[data-score="${existing.verdict}"]`);
-        if (fBtn) fBtn.classList.add('active');
-        if (['3', '4', 'unsure'].includes(existing.verdict)) {
-            document.getElementById('factualReasonSection').classList.remove('d-none');
-            document.getElementById('factualReasoning').value = existing.factual_reasoning || '';
-        }
-        const hBtn = document.querySelector(`.harm-btn[data-score="${existing.harm_verdict}"]`);
-        if (hBtn) hBtn.classList.add('active');
-        if (['1', '2', 'unsure'].includes(existing.harm_verdict)) {
-            document.getElementById('harmReasonSection').classList.remove('d-none');
-            document.getElementById('harmReasoning').value = existing.harm_reasoning || '';
-        }
-        document.getElementById('clinAnnotComment').value = existing.annotation || '';
-    }
-
-    clinModal.show();
-}
-
-// Factual button handlers
-document.querySelectorAll('.factual-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        document.querySelectorAll('.factual-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        const score = this.dataset.score;
-        const label = document.querySelector('#factualReasonSection label');
-        if (['3', '4'].includes(score)) {
-            label.textContent = 'Why do you think this statement is inaccurate?';
-            document.getElementById('factualReasonSection').classList.remove('d-none');
-        } else if (score === 'unsure') {
-            label.textContent = 'Why are you unsure about the accuracy of this statement?';
-            document.getElementById('factualReasonSection').classList.remove('d-none');
-        } else {
-            document.getElementById('factualReasonSection').classList.add('d-none');
-            document.getElementById('factualReasoning').value = '';
+function deleteSpan(id) {
+    const annot = existingAnnotations.find(a => a.id === id);
+    const itemIdx = annot ? annot.item_index : null;
+    fetch(`/api/annotation/${id}/delete`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+        if (d.ok) {
+            existingAnnotations = existingAnnotations.filter(a => a.id !== id);
+            renderHighlights();
+            if (itemIdx !== null) syncClaimCode(itemIdx);
+            statusEl.innerHTML = '<small class="text-success">Span removed</small>';
         }
     });
-});
-
-// Harm button handlers
-document.querySelectorAll('.harm-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        document.querySelectorAll('.harm-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        const score = this.dataset.score;
-        const label = document.querySelector('#harmReasonSection label');
-        if (['1', '2'].includes(score)) {
-            label.textContent = 'Why do you think this statement is potentially harmful?';
-            document.getElementById('harmReasonSection').classList.remove('d-none');
-        } else if (score === 'unsure') {
-            label.textContent = 'Why are you unsure about the potential harm of this statement?';
-            document.getElementById('harmReasonSection').classList.remove('d-none');
-        } else {
-            document.getElementById('harmReasonSection').classList.add('d-none');
-            document.getElementById('harmReasoning').value = '';
-        }
-    });
-});
+}
 
 // Smart selection: snap to word boundaries
 function snapToWordBounds(fullText, start, end) {
@@ -371,7 +188,7 @@ function snapToWordBounds(fullText, start, end) {
     return { start, end, text: fullText.slice(start, end) };
 }
 
-// Text selection for new highlights
+// Text selection → auto-save span + CLAIM
 document.querySelectorAll('.clinical-comment-text').forEach(el => {
     el.addEventListener('mouseup', function(e) {
         if (e.target.tagName === 'MARK') return;
@@ -388,60 +205,17 @@ document.querySelectorAll('.clinical-comment-text').forEach(el => {
 
         const fullText = this.textContent || this.innerText;
         const snapped = snapToWordBounds(fullText, start, end);
+        const itemIndex = parseInt(this.dataset.index);
 
-        pendingClinAnnot = {
-            index: parseInt(this.dataset.index),
-            start: snapped.start, end: snapped.end, text: snapped.text,
-            existing_id: null,
-        };
-
-        openClinicalModal(snapped.text, null);
-    });
-});
-
-// Save annotation
-document.getElementById('saveClinAnnotBtn').addEventListener('click', function() {
-    if (!pendingClinAnnot) return;
-    const factualBtn = document.querySelector('.factual-btn.active');
-    const harmBtn = document.querySelector('.harm-btn.active');
-    if (!factualBtn || !harmBtn) {
-        alert('Please answer both questions (accuracy and potential harm).');
-        return;
-    }
-
-    const verdict = factualBtn.dataset.score;
-    const harmVerdict = harmBtn.dataset.score;
-    const annotation = document.getElementById('clinAnnotComment').value;
-    const factualReasoning = ['3', '4', 'unsure'].includes(verdict)
-        ? document.getElementById('factualReasoning').value : '';
-    const harmReasoning = ['1', '2', 'unsure'].includes(harmVerdict)
-        ? document.getElementById('harmReasoning').value : '';
-
-    if (['3', '4', 'unsure'].includes(verdict) && !factualReasoning.trim()) {
-        alert('Please explain your accuracy reasoning.');
-        document.getElementById('factualReasoning').focus();
-        return;
-    }
-    if (['1', '2', 'unsure'].includes(harmVerdict) && !harmReasoning.trim()) {
-        alert('Please explain your harm reasoning.');
-        document.getElementById('harmReasoning').focus();
-        return;
-    }
-
-    const saveNew = () => {
+        // Auto-save the span (no modal)
         fetch(`/api/annotation/${POST_ID}/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                item_index: pendingClinAnnot.index,
-                start: pendingClinAnnot.start,
-                end: pendingClinAnnot.end,
-                text: pendingClinAnnot.text,
-                annotation: annotation,
-                verdict: verdict,
-                harm_verdict: harmVerdict,
-                factual_reasoning: factualReasoning,
-                harm_reasoning: harmReasoning,
+                item_index: itemIndex,
+                start: snapped.start,
+                end: snapped.end,
+                text: snapped.text,
             }),
         })
         .then(r => r.json())
@@ -452,98 +226,131 @@ document.getElementById('saveClinAnnotBtn').addEventListener('click', function()
                 }
                 existingAnnotations.push({
                     id: d.id,
-                    item_index: pendingClinAnnot.index,
-                    start: pendingClinAnnot.start,
-                    end: pendingClinAnnot.end,
-                    text: pendingClinAnnot.text,
-                    annotation: annotation,
-                    verdict: verdict,
-                    harm_verdict: harmVerdict,
-                    factual_reasoning: factualReasoning,
-                    harm_reasoning: harmReasoning,
+                    item_index: itemIndex,
+                    start: snapped.start,
+                    end: snapped.end,
+                    text: snapped.text,
                 });
-                renderClinicalHighlights();
-                clinModal.hide();
-                statusEl.innerHTML = '<small class="text-success">Annotation saved</small>';
+                renderHighlights();
+                syncClaimCode(itemIndex);
+                statusEl.innerHTML = '<small class="text-success">Claim span saved</small>';
             }
         });
-    };
 
-    if (pendingClinAnnot.existing_id) {
-        fetch(`/api/annotation/${pendingClinAnnot.existing_id}/delete`, { method: 'POST' })
-        .then(r => r.json())
-        .then(d => {
-            existingAnnotations = existingAnnotations.filter(a => a.id != pendingClinAnnot.existing_id);
-            saveNew();
-        });
-    } else {
-        saveNew();
-    }
+        sel.removeAllRanges();
+    });
 });
 
 // Initial render
-renderClinicalHighlights();
+renderHighlights();
 
-// ── Speech to text ──
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SpeechRecognition) {
-    let activeRecognition = null;
-    let activeBtn = null;
+// ── Comment-level codes ──
 
-    document.querySelectorAll('.mic-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const targetId = this.dataset.target;
-            const textarea = document.getElementById(targetId);
-
-            if (activeBtn === this && activeRecognition) {
-                activeRecognition.stop();
-                return;
-            }
-            if (activeRecognition) activeRecognition.stop();
-
-            const recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'en-US';
-
-            activeRecognition = recognition;
-            activeBtn = this;
-            this.style.background = '#dc3545';
-            this.style.color = '#fff';
-            this.innerHTML = '&#9209;';
-
-            let finalTranscript = textarea.value;
-
-            recognition.onresult = function(event) {
-                let interim = '';
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += (finalTranscript ? ' ' : '') + event.results[i][0].transcript;
-                    } else {
-                        interim += event.results[i][0].transcript;
-                    }
-                }
-                textarea.value = finalTranscript + (interim ? ' ' + interim : '');
-            };
-
-            recognition.onend = function() {
-                textarea.value = finalTranscript;
-                btn.style.background = '';
-                btn.style.color = '';
-                btn.innerHTML = '&#127908; Speak';
-                activeRecognition = null;
-                activeBtn = null;
-            };
-
-            recognition.onerror = function(e) {
-                if (e.error !== 'aborted') console.error('Speech error:', e.error);
-            };
-
-            recognition.start();
-        });
-    });
-} else {
-    document.querySelectorAll('.mic-btn').forEach(btn => btn.style.display = 'none');
+function getCodesForComment(idx) {
+    return codesByComment[String(idx)] || codesByComment[idx] || [];
 }
+
+function setCodesForComment(idx, codes) {
+    codesByComment[String(idx)] = codes;
+}
+
+function hasSpansForComment(idx) {
+    return existingAnnotations.some(a => a.item_index === idx);
+}
+
+function syncClaimCode(idx) {
+    const codes = getCodesForComment(idx);
+    const hasClaim = codes.includes('CLAIM');
+    const hasSpans = hasSpansForComment(idx);
+
+    if (hasSpans && !hasClaim) {
+        codes.push('CLAIM');
+        setCodesForComment(idx, codes);
+        saveCommentCodes(idx, codes);
+    } else if (!hasSpans && hasClaim) {
+        const filtered = codes.filter(c => c !== 'CLAIM');
+        setCodesForComment(idx, filtered);
+        saveCommentCodes(idx, filtered);
+    }
+    renderCodeButtons();
+}
+
+function renderCodeButtons() {
+    document.querySelectorAll('.code-toggle-btn').forEach(btn => {
+        const code = btn.dataset.code;
+        const idx = parseInt(btn.closest('.comment-codes-bar').dataset.index);
+        const codes = getCodesForComment(idx);
+        const info = COMMENT_CODES[code];
+        if (codes.includes(code)) {
+            btn.style.background = info.color;
+            btn.style.color = info.border_color;
+            btn.style.fontWeight = 'bold';
+        } else {
+            btn.style.background = 'transparent';
+            btn.style.color = info.border_color;
+            btn.style.fontWeight = 'normal';
+        }
+    });
+
+    document.querySelectorAll('.claim-badge').forEach(badge => {
+        const idx = parseInt(badge.dataset.index);
+        const codes = getCodesForComment(idx);
+        if (codes.includes('CLAIM')) {
+            badge.classList.remove('d-none');
+        } else {
+            badge.classList.add('d-none');
+        }
+    });
+}
+
+function saveCommentCodes(idx, codes) {
+    fetch(`/api/codes/${POST_ID}/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment_index: idx, codes: codes }),
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.ok) statusEl.innerHTML = '<small class="text-success">Codes saved</small>';
+    });
+}
+
+// Toggle buttons for non-CLAIM codes
+document.querySelectorAll('.code-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const code = this.dataset.code;
+        const idx = parseInt(this.closest('.comment-codes-bar').dataset.index);
+        let codes = getCodesForComment(idx);
+        if (codes.includes(code)) {
+            codes = codes.filter(c => c !== code);
+        } else {
+            codes.push(code);
+        }
+        setCodesForComment(idx, codes);
+        saveCommentCodes(idx, codes);
+        renderCodeButtons();
+    });
+});
+
+// Initial render of code buttons + sync CLAIM with existing spans
+(function initCodes() {
+    const allIndices = new Set();
+    document.querySelectorAll('.comment-codes-bar').forEach(bar => {
+        allIndices.add(parseInt(bar.dataset.index));
+    });
+    allIndices.forEach(idx => syncClaimCode(idx));
+    renderCodeButtons();
+})();
 </script>
+
+<style>
+.hl-claim {
+    background: #fee2e222;
+    border-bottom: 2px solid #ef4444;
+    cursor: pointer;
+}
+.hl-claim:hover {
+    background: #fee2e266;
+}
+</style>
 {% endblock %}

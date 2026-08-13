@@ -29,6 +29,19 @@ class Assignment(db.Model):
     )
 
 
+class CommentCode(db.Model):
+    """Comment-level codes (EXPER, HEDGED, CLAIM, etc.)."""
+    id = db.Column(db.Integer, primary_key=True)
+    expert_id = db.Column(db.Integer, db.ForeignKey("expert.id"), nullable=False)
+    post_id = db.Column(db.String(20), nullable=False)
+    comment_index = db.Column(db.Integer, nullable=False)
+    code = db.Column(db.String(20), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("expert_id", "post_id", "comment_index", "code"),
+    )
+
+
 class TextAnnotation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     expert_id = db.Column(db.Integer, db.ForeignKey("expert.id"), nullable=False)

@@ -1,7 +1,47 @@
 import os, io, csv
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response
-from models import db, Expert, Assignment, TextAnnotation
+from models import db, Expert, Assignment, TextAnnotation, CommentCode
 from load_data import load_all
+
+# Comment-level codes (CLAIM is auto-added via highlighting, not a toggle)
+COMMENT_CODES = {
+    "CLAIM": {
+        "label": "Confident Claim",
+        "description": "Any assertion presented with confidence. Auto-added when you highlight a span.",
+        "color": "#fee2e2", "border_color": "#ef4444",
+        "is_span_code": True,
+    },
+    "EXPER": {
+        "label": "Personal Experience",
+        "description": "Explicitly framed as what happened to the poster personally.",
+        "color": "#dbeafe", "border_color": "#3b82f6",
+        "is_span_code": False,
+    },
+    "HEDGED": {
+        "label": "Hedged Claim",
+        "description": "Uncertainty explicitly signaled. The claim is softened or qualified.",
+        "color": "#fef9c3", "border_color": "#eab308",
+        "is_span_code": False,
+    },
+    "SUPPORT": {
+        "label": "Emotional Support",
+        "description": "No clinical claim. Validates, encourages, or empathizes.",
+        "color": "#dcfce7", "border_color": "#22c55e",
+        "is_span_code": False,
+    },
+    "REF": {
+        "label": "Referral",
+        "description": "Directs the poster to a provider, clinic, or authoritative resource.",
+        "color": "#e0e7ff", "border_color": "#6366f1",
+        "is_span_code": False,
+    },
+    "META-R": {
+        "label": "Reaction / Advocacy",
+        "description": "Emotional reaction, shared distress, or advocacy. No clinical advice.",
+        "color": "#f3e8ff", "border_color": "#a855f7",
+        "is_span_code": False,
+    },
+}
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "methadone-review-dev-key-2024")
@@ -167,6 +207,13 @@ def review(post_id):
             "harm_reasoning": a.harm_reasoning or "",
         })
 
+    # Load comment-level codes
+    codes_by_comment = {}
+    for cc in CommentCode.query.filter_by(expert_id=expert.id, post_id=post_id).all():
+        if cc.comment_index not in codes_by_comment:
+            codes_by_comment[cc.comment_index] = []
+        codes_by_comment[cc.comment_index].append(cc.code)
+
     # Prev/next navigation
     if expert.username != "admin":
         nav_ids = [pid for pid in POST_IDS if pid in assigned_ids]
@@ -181,6 +228,8 @@ def review(post_id):
 
     return render_template("review.html", post=post, comment_data=comment_data,
                            existing_annotations=existing_annotations,
+                           codes_by_comment=codes_by_comment,
+                           comment_codes=COMMENT_CODES,
                            prev_id=prev_id, next_id=next_id,
                            username=session.get("username"))
 
@@ -221,6 +270,29 @@ def save_annotation(post_id):
     db.session.add(annot)
     db.session.commit()
     return jsonify({"ok": True, "id": annot.id, "removed_ids": removed_ids})
+
+
+@app.route("/api/codes/<post_id>/save", methods=["POST"])
+def save_codes(post_id):
+    expert = get_expert()
+    if not expert:
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.json
+    comment_index = data.get("comment_index")
+    codes = data.get("codes", [])
+
+    CommentCode.query.filter_by(
+        expert_id=expert.id, post_id=post_id, comment_index=comment_index
+    ).delete()
+
+    for code in codes:
+        if code in COMMENT_CODES:
+            db.session.add(CommentCode(
+                expert_id=expert.id, post_id=post_id,
+                comment_index=comment_index, code=code,
+            ))
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/annotation/<int:annot_id>/delete", methods=["POST"])
@@ -332,13 +404,12 @@ def admin_export_csv():
     if not expert or expert.username != "admin":
         return redirect(url_for("login"))
 
+    # Sheet 1: Claim spans
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
         "annotation_id", "expert", "post_id", "comment_index",
-        "highlighted_span", "start_offset", "end_offset",
-        "accuracy", "harm_potential",
-        "accuracy_reasoning", "harm_reasoning", "optional_comment", "created_at"
+        "highlighted_span", "start_offset", "end_offset", "created_at"
     ])
 
     for a in TextAnnotation.query.order_by(TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
@@ -351,16 +422,22 @@ def admin_export_csv():
             a.highlighted_text,
             a.start_offset,
             a.end_offset,
-            a.verdict or "",
-            a.harm_verdict or "",
-            a.factual_reasoning or "",
-            a.harm_reasoning or "",
-            a.annotation_text or "",
             a.created_at.isoformat() if a.created_at else "",
         ])
 
-    output.seek(0)
-    return Response(output.getvalue(), mimetype="text/csv",
+    # Second sheet: comment-level codes
+    codes_output = io.StringIO()
+    codes_writer = csv.writer(codes_output)
+    codes_writer.writerow(["expert", "post_id", "comment_index", "code"])
+    for cc in CommentCode.query.order_by(CommentCode.post_id, CommentCode.comment_index).all():
+        expert_obj = Expert.query.get(cc.expert_id)
+        codes_writer.writerow([
+            expert_obj.username if expert_obj else "unknown",
+            cc.post_id, cc.comment_index, cc.code,
+        ])
+
+    combined = output.getvalue() + "\n\n--- COMMENT CODES ---\n" + codes_output.getvalue()
+    return Response(combined, mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=methadone_annotations.csv"})
 
 
@@ -407,10 +484,22 @@ def admin_review(post_id):
     prev_id = POST_IDS[idx - 1] if idx > 0 else None
     next_id = POST_IDS[idx + 1] if idx < len(POST_IDS) - 1 else None
 
+    # Load comment codes for admin view
+    all_codes = {}
+    for cc in CommentCode.query.filter_by(post_id=post_id).all():
+        expert_obj = Expert.query.get(cc.expert_id)
+        name = expert_obj.username if expert_obj else "unknown"
+        key = f"{name}_{cc.comment_index}"
+        if key not in all_codes:
+            all_codes[key] = {"expert_name": name, "comment_index": cc.comment_index, "codes": []}
+        all_codes[key]["codes"].append(cc.code)
+
     return render_template("admin_review.html", post=post, comment_data=comment_data,
                            all_annotations=all_annotations,
                            annotations_by_expert=annotations_by_expert,
                            expert_names=sorted(annotations_by_expert.keys()),
+                           all_codes=list(all_codes.values()),
+                           comment_codes=COMMENT_CODES,
                            prev_id=prev_id, next_id=next_id,
                            username=session.get("username"))
 
