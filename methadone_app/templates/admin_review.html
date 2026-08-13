@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Admin Review: {{ post.title }}{% endblock %}
+{% block content %}
+
+<!-- Nav -->
+<div class="d-flex justify-content-between mb-3">
+    {% if prev_id %}
+    <a href="{{ url_for('admin_review', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>
+    {% else %}<span></span>{% endif %}
+    <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
+    {% if next_id %}
+    <a href="{{ url_for('admin_review', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
+    {% else %}<span></span>{% endif %}
+</div>
+
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between">
+        <h6 class="mb-0">{{ post.title }}</h6>
+        <a href="{{ post.link }}" target="_blank" class="btn btn-sm btn-outline-danger">Reddit</a>
+    </div>
+</div>
+
+<!-- Expert filter -->
+<div class="mb-3">
+    <label class="form-label small fw-bold">Filter by expert:</label>
+    <select id="expertFilter" class="form-select form-select-sm" style="max-width:200px;">
+        <option value="all">All experts</option>
+        {% for name in expert_names %}
+        <option value="{{ name }}">{{ name }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card sticky-panel mb-3">
+            <div class="card-header"><h6 class="mb-0">Original Post</h6></div>
+            <div class="card-body source-panel">
+                <div class="border rounded p-2 bg-light" style="font-size:0.85rem; white-space:pre-wrap;">{{ comment_data.get('body', '(No body)') }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        {% for item in post.advice %}
+        <div class="card mb-3 comment-annotation-card">
+            <div class="card-header"><h6 class="mb-0">Comment {{ loop.index }}</h6></div>
+            <div class="card-body">
+                <div class="clinical-comment-text" data-index="{{ loop.index0 }}">{{ item.advice }}</div>
+                <div class="annotations-list mt-2" data-index="{{ loop.index0 }}"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const allAnnotations = {{ all_annotations | tojson }};
+const expertColors = {};
+const colors = ['#0d6efd', '#198754', '#dc3545', '#fd7e14', '#6610f2', '#20c997', '#d63384'];
+let ci = 0;
+
+function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+function getLikertLabel(v) {
+    const l = {'1':'Strongly Agree','2':'Agree','3':'Disagree','4':'Strongly Disagree','unsure':'Unsure'};
+    return l[v] || v || '?';
+}
+function getLikertBadgeClass(v) {
+    if (v==='1') return 'success'; if (v==='2') return 'info';
+    if (v==='3') return 'orange'; if (v==='4') return 'danger'; return 'secondary';
+}
+
+function renderAll(filter) {
+    const annots = filter === 'all' ? allAnnotations : allAnnotations.filter(a => a.expert_name === filter);
+
+    document.querySelectorAll('.clinical-comment-text').forEach(el => {
+        const idx = parseInt(el.dataset.index);
+        const rawText = el.textContent || el.innerText;
+        const relevant = annots.filter(a => a.item_index === idx);
+        relevant.sort((a, b) => a.start - b.start);
+
+        const merged = [];
+        for (const h of relevant) {
+            if (merged.length && merged[merged.length - 1].end > h.start) continue;
+            merged.push(h);
+        }
+
+        let html = '', cursor = 0;
+        for (const h of merged) {
+            if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
+            if (!expertColors[h.expert_name]) expertColors[h.expert_name] = colors[ci++ % colors.length];
+            const color = expertColors[h.expert_name];
+            html += `<mark style="background:${color}22; border-bottom:2px solid ${color};" title="${escHtml(h.expert_name)}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
+            cursor = h.end;
+        }
+        if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
+        el.innerHTML = html;
+    });
+
+    document.querySelectorAll('.annotations-list').forEach(el => { el.innerHTML = ''; });
+    annots.forEach(a => {
+        const container = document.querySelector(`.annotations-list[data-index="${a.item_index}"]`);
+        if (!container) return;
+        if (!expertColors[a.expert_name]) expertColors[a.expert_name] = colors[ci++ % colors.length];
+        const color = expertColors[a.expert_name];
+        const fCls = getLikertBadgeClass(a.verdict);
+        const hCls = getLikertBadgeClass(a.harm_verdict);
+        const div = document.createElement('div');
+        div.className = 'annotation-tag';
+        div.dataset.expert = a.expert_name;
+        div.innerHTML = `
+            <span class="badge" style="background:${color};">${a.expert_name}</span>
+            <span class="badge bg-${fCls} ms-1">AC: ${getLikertLabel(a.verdict)}</span>
+            <span class="badge bg-${hCls} ms-1">PH: ${getLikertLabel(a.harm_verdict)}</span>
+            <em class="ms-1">"${escHtml(a.text.substring(0, 80))}${a.text.length > 80 ? '...' : ''}"</em>
+            ${a.annotation ? ` — ${escHtml(a.annotation)}` : ''}
+            ${a.factual_reasoning ? ` <span class="badge bg-warning text-dark ms-1">Accuracy: ${escHtml(a.factual_reasoning.substring(0, 60))}</span>` : ''}
+            ${a.harm_reasoning ? ` <span class="badge bg-danger ms-1">Harm: ${escHtml(a.harm_reasoning.substring(0, 60))}</span>` : ''}
+        `;
+        container.appendChild(div);
+    });
+}
+
+document.getElementById('expertFilter').addEventListener('change', function() { renderAll(this.value); });
+renderAll('all');
+</script>
+{% endblock %}
