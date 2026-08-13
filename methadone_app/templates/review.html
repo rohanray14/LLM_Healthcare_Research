@@ -151,7 +151,6 @@ function renderHighlights() {
             e.stopPropagation();
             const annotId = this.dataset.annotId;
             if (!annotId || annotId === 'undefined') return;
-            if (!confirm('Remove this highlighted span?')) return;
             deleteSpan(parseInt(annotId));
         });
     });
