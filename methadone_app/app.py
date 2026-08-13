@@ -41,6 +41,13 @@ COMMENT_CODES = {
         "color": "#f3e8ff", "border_color": "#a855f7",
         "is_span_code": False,
     },
+    "EXCLUDE": {
+        "label": "Exclude",
+        "description": "Comment content is irrelevant and should be excluded from analysis.",
+        "color": "#f1f5f9", "border_color": "#64748b",
+        "is_span_code": False,
+        "needs_reason": True,
+    },
 }
 
 app = Flask(__name__)
@@ -209,10 +216,13 @@ def review(post_id):
 
     # Load comment-level codes
     codes_by_comment = {}
+    exclude_reasons = {}
     for cc in CommentCode.query.filter_by(expert_id=expert.id, post_id=post_id).all():
         if cc.comment_index not in codes_by_comment:
             codes_by_comment[cc.comment_index] = []
         codes_by_comment[cc.comment_index].append(cc.code)
+        if cc.code == "EXCLUDE" and cc.reason:
+            exclude_reasons[cc.comment_index] = cc.reason
 
     # Prev/next navigation
     if expert.username != "admin":
@@ -229,6 +239,7 @@ def review(post_id):
     return render_template("review.html", post=post, comment_data=comment_data,
                            existing_annotations=existing_annotations,
                            codes_by_comment=codes_by_comment,
+                           exclude_reasons=exclude_reasons,
                            comment_codes=COMMENT_CODES,
                            prev_id=prev_id, next_id=next_id,
                            username=session.get("username"))
@@ -280,6 +291,7 @@ def save_codes(post_id):
     data = request.json
     comment_index = data.get("comment_index")
     codes = data.get("codes", [])
+    exclude_reason = data.get("exclude_reason", "")
 
     CommentCode.query.filter_by(
         expert_id=expert.id, post_id=post_id, comment_index=comment_index
@@ -290,6 +302,7 @@ def save_codes(post_id):
             db.session.add(CommentCode(
                 expert_id=expert.id, post_id=post_id,
                 comment_index=comment_index, code=code,
+                reason=exclude_reason if code == "EXCLUDE" else "",
             ))
     db.session.commit()
     return jsonify({"ok": True})
@@ -428,12 +441,12 @@ def admin_export_csv():
     # Second sheet: comment-level codes
     codes_output = io.StringIO()
     codes_writer = csv.writer(codes_output)
-    codes_writer.writerow(["expert", "post_id", "comment_index", "code"])
+    codes_writer.writerow(["expert", "post_id", "comment_index", "code", "exclude_reason"])
     for cc in CommentCode.query.order_by(CommentCode.post_id, CommentCode.comment_index).all():
         expert_obj = Expert.query.get(cc.expert_id)
         codes_writer.writerow([
             expert_obj.username if expert_obj else "unknown",
-            cc.post_id, cc.comment_index, cc.code,
+            cc.post_id, cc.comment_index, cc.code, cc.reason or "",
         ])
 
     combined = output.getvalue() + "\n\n--- COMMENT CODES ---\n" + codes_output.getvalue()
@@ -491,8 +504,10 @@ def admin_review(post_id):
         name = expert_obj.username if expert_obj else "unknown"
         key = f"{name}_{cc.comment_index}"
         if key not in all_codes:
-            all_codes[key] = {"expert_name": name, "comment_index": cc.comment_index, "codes": []}
+            all_codes[key] = {"expert_name": name, "comment_index": cc.comment_index, "codes": [], "exclude_reason": ""}
         all_codes[key]["codes"].append(cc.code)
+        if cc.code == "EXCLUDE" and cc.reason:
+            all_codes[key]["exclude_reason"] = cc.reason
 
     return render_template("admin_review.html", post=post, comment_data=comment_data,
                            all_annotations=all_annotations,

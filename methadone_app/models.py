@@ -36,6 +36,7 @@ class CommentCode(db.Model):
     post_id = db.Column(db.String(20), nullable=False)
     comment_index = db.Column(db.Integer, nullable=False)
     code = db.Column(db.String(20), nullable=False)
+    reason = db.Column(db.Text, default="")
 
     __table_args__ = (
         db.UniqueConstraint("expert_id", "post_id", "comment_index", "code"),

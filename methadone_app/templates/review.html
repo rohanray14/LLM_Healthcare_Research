@@ -58,7 +58,7 @@
                 <div class="comment-codes-bar mb-2" data-index="{{ loop.index0 }}">
                     {% set outer_idx = loop.index0 %}
                     {% for code, info in comment_codes.items() %}
-                    {% if not info.get('is_span_code') %}
+                    {% if not info.get('is_span_code') and not info.get('needs_reason') %}
                     <button type="button"
                             class="btn btn-sm code-toggle-btn me-1 mb-1"
                             data-code="{{ code }}"
@@ -75,6 +75,23 @@
                           style="background: {{ comment_codes.CLAIM.color }}; color: {{ comment_codes.CLAIM.border_color }}; border: 1px solid {{ comment_codes.CLAIM.border_color }}; font-size: 0.78rem; vertical-align: middle;">
                         CLAIM (auto)
                     </span>
+                    <span class="ms-2" style="border-left: 1px solid #ccc; padding-left: 8px;">
+                        <button type="button"
+                                class="btn btn-sm exclude-toggle-btn mb-1"
+                                data-index="{{ outer_idx }}"
+                                style="border: 2px solid #64748b; background: transparent; color: #64748b; font-size: 0.78rem;"
+                                title="Exclude this comment — content is irrelevant">
+                            Exclude
+                        </button>
+                    </span>
+                </div>
+                <!-- Exclude reason (hidden by default) -->
+                <div class="exclude-reason-box d-none mb-2" data-index="{{ loop.index0 }}">
+                    <textarea class="form-control form-control-sm exclude-reason-input"
+                              data-index="{{ loop.index0 }}"
+                              rows="2"
+                              placeholder="Why is this comment irrelevant?"
+                              style="font-size: 0.82rem;"></textarea>
                 </div>
                 <div class="annotatable-text clinical-comment-text"
                      data-index="{{ loop.index0 }}"
@@ -95,6 +112,7 @@ const statusEl = document.getElementById('saveStatus');
 let existingAnnotations = {{ existing_annotations | tojson }};
 const COMMENT_CODES = {{ comment_codes | tojson }};
 let codesByComment = {{ codes_by_comment | tojson }};
+let excludeReasons = {{ exclude_reasons | tojson }};
 
 function escHtml(t) {
     const d = document.createElement('div');
@@ -300,13 +318,35 @@ function renderCodeButtons() {
             badge.classList.add('d-none');
         }
     });
+
+    // Exclude buttons + reason boxes
+    document.querySelectorAll('.exclude-toggle-btn').forEach(btn => {
+        const idx = parseInt(btn.dataset.index);
+        const codes = getCodesForComment(idx);
+        const isExcluded = codes.includes('EXCLUDE');
+        const reasonBox = document.querySelector(`.exclude-reason-box[data-index="${idx}"]`);
+        const reasonInput = document.querySelector(`.exclude-reason-input[data-index="${idx}"]`);
+        if (isExcluded) {
+            btn.style.background = '#f1f5f9';
+            btn.style.color = '#64748b';
+            btn.style.fontWeight = 'bold';
+            reasonBox.classList.remove('d-none');
+            reasonInput.value = excludeReasons[String(idx)] || '';
+        } else {
+            btn.style.background = 'transparent';
+            btn.style.color = '#64748b';
+            btn.style.fontWeight = 'normal';
+            reasonBox.classList.add('d-none');
+        }
+    });
 }
 
 function saveCommentCodes(idx, codes) {
+    const reason = excludeReasons[String(idx)] || '';
     fetch(`/api/codes/${POST_ID}/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comment_index: idx, codes: codes }),
+        body: JSON.stringify({ comment_index: idx, codes: codes, exclude_reason: reason }),
     })
     .then(r => r.json())
     .then(d => {
@@ -328,6 +368,35 @@ document.querySelectorAll('.code-toggle-btn').forEach(btn => {
         setCodesForComment(idx, codes);
         saveCommentCodes(idx, codes);
         renderCodeButtons();
+    });
+});
+
+// Exclude toggle
+document.querySelectorAll('.exclude-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const idx = parseInt(this.dataset.index);
+        let codes = getCodesForComment(idx);
+        if (codes.includes('EXCLUDE')) {
+            codes = codes.filter(c => c !== 'EXCLUDE');
+            excludeReasons[String(idx)] = '';
+        } else {
+            codes.push('EXCLUDE');
+        }
+        setCodesForComment(idx, codes);
+        saveCommentCodes(idx, codes);
+        renderCodeButtons();
+    });
+});
+
+// Save exclude reason on blur
+document.querySelectorAll('.exclude-reason-input').forEach(input => {
+    input.addEventListener('blur', function() {
+        const idx = parseInt(this.dataset.index);
+        excludeReasons[String(idx)] = this.value;
+        const codes = getCodesForComment(idx);
+        if (codes.includes('EXCLUDE')) {
+            saveCommentCodes(idx, codes);
+        }
     });
 });
 

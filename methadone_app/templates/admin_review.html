@@ -127,7 +127,8 @@ function renderCodes(filter) {
             entry.codes.map(c => {
                 const info = commentCodesConfig[c] || {};
                 return `<span class="badge ms-1" style="background:${info.color || '#eee'}; color:${info.border_color || '#333'}; border:1px solid ${info.border_color || '#ccc'};">${c}</span>`;
-            }).join('');
+            }).join('') +
+            (entry.exclude_reason ? ` <em class="ms-1 text-muted" style="font-size:0.8rem;">(${escHtml(entry.exclude_reason)})</em>` : '');
         container.appendChild(span);
     });
 }
