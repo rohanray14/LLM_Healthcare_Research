@@ -438,6 +438,53 @@ def admin_assign():
     return jsonify({"ok": True})
 
 
+# ── Admin: DB Viewer ──────────────────────────────────
+
+@app.route("/admin/db")
+def admin_db():
+    expert = get_expert()
+    if not expert or expert.username != "admin":
+        return redirect(url_for("login"))
+
+    from sqlalchemy import text, inspect
+    inspector = inspect(db.engine)
+    table_names = inspector.get_table_names()
+
+    selected = request.args.get("table", "")
+    rows = []
+    columns = []
+    row_count = 0
+
+    if selected and selected in table_names:
+        result = db.session.execute(text(f'SELECT count(*) FROM "{selected}"'))
+        row_count = result.scalar()
+        limit = int(request.args.get("limit", 100))
+        offset = int(request.args.get("offset", 0))
+        result = db.session.execute(
+            text(f'SELECT * FROM "{selected}" ORDER BY 1 DESC LIMIT :lim OFFSET :off'),
+            {"lim": limit, "off": offset},
+        )
+        columns = list(result.keys())
+        rows = [list(r) for r in result.fetchall()]
+
+    table_counts = {}
+    for t in table_names:
+        result = db.session.execute(text(f'SELECT count(*) FROM "{t}"'))
+        table_counts[t] = result.scalar()
+
+    return render_template(
+        "admin_db.html",
+        tables=table_names,
+        table_counts=table_counts,
+        selected=selected,
+        columns=columns,
+        rows=rows,
+        row_count=row_count,
+        limit=int(request.args.get("limit", 100)),
+        offset=int(request.args.get("offset", 0)),
+    )
+
+
 # ── Admin: Export CSV ─────────────────────────────────
 
 @app.route("/admin/export_csv")
