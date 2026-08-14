@@ -15,7 +15,7 @@
 
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between">
-        <h6 class="mb-0">{{ post.title }}</h6>
+        <h6 class="mb-0"><code class="me-2">{{ post.post_id }}</code>{{ post.title }}</h6>
         <a href="{{ post.link }}" target="_blank" class="btn btn-sm btn-outline-danger">Reddit</a>
     </div>
 </div>
@@ -95,21 +95,29 @@ function renderAll(filter) {
         el.innerHTML = html;
     });
 
+    // Group annotations by expert for each comment
     document.querySelectorAll('.annotations-list').forEach(el => { el.innerHTML = ''; });
+    const byExpertByComment = {};
     annots.forEach(a => {
-        const container = document.querySelector(`.annotations-list[data-index="${a.item_index}"]`);
+        const key = `${a.item_index}_${a.expert_name}`;
+        if (!byExpertByComment[key]) byExpertByComment[key] = { expert: a.expert_name, idx: a.item_index, spans: [] };
+        byExpertByComment[key].spans.push(a);
+    });
+    Object.values(byExpertByComment).forEach(group => {
+        const container = document.querySelector(`.annotations-list[data-index="${group.idx}"]`);
         if (!container) return;
-        if (!expertColors[a.expert_name]) expertColors[a.expert_name] = colors[ci++ % colors.length];
-        const color = expertColors[a.expert_name];
-        const div = document.createElement('div');
-        div.className = 'annotation-tag';
-        div.dataset.expert = a.expert_name;
-        div.innerHTML = `
-            <span class="badge" style="background:${color};">${a.expert_name}</span>
-            <span class="badge ms-1" style="background:#fee2e2; color:#ef4444; border:1px solid #ef4444;">CLAIM</span>
-            <em class="ms-1">"${escHtml(a.text.substring(0, 100))}${a.text.length > 100 ? '...' : ''}"</em>
-        `;
-        container.appendChild(div);
+        if (!expertColors[group.expert]) expertColors[group.expert] = colors[ci++ % colors.length];
+        const color = expertColors[group.expert];
+        const block = document.createElement('div');
+        block.className = 'border rounded p-2 mb-2';
+        block.style.borderLeft = `3px solid ${color}`;
+        block.dataset.expert = group.expert;
+        let html = `<div class="mb-1"><span class="badge" style="background:${color};">${group.expert}</span></div>`;
+        group.spans.forEach(a => {
+            html += `<div class="annotation-tag"><span class="badge" style="background:#fee2e2; color:#ef4444; border:1px solid #ef4444;">CLAIM</span> <em class="ms-1">"${escHtml(a.text.substring(0, 100))}${a.text.length > 100 ? '...' : ''}"</em></div>`;
+        });
+        block.innerHTML = html;
+        container.appendChild(block);
     });
 }
 
@@ -121,15 +129,16 @@ function renderCodes(filter) {
         if (!container) return;
         if (!expertColors[entry.expert_name]) expertColors[entry.expert_name] = colors[ci++ % colors.length];
         const color = expertColors[entry.expert_name];
-        const span = document.createElement('span');
-        span.className = 'me-2';
-        span.innerHTML = `<span class="badge" style="background:${color};">${entry.expert_name}</span> ` +
+        const div = document.createElement('div');
+        div.className = 'mb-1';
+        div.dataset.expert = entry.expert_name;
+        div.innerHTML = `<span class="badge" style="background:${color};">${entry.expert_name}</span> ` +
             entry.codes.map(c => {
                 const info = commentCodesConfig[c] || {};
                 return `<span class="badge ms-1" style="background:${info.color || '#eee'}; color:${info.border_color || '#333'}; border:1px solid ${info.border_color || '#ccc'};">${c}</span>`;
             }).join('') +
             (entry.exclude_reason ? ` <em class="ms-1 text-muted" style="font-size:0.8rem;">(${escHtml(entry.exclude_reason)})</em>` : '');
-        container.appendChild(span);
+        container.appendChild(div);
     });
 }
 
