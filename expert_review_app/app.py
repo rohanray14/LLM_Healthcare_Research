@@ -125,18 +125,18 @@ def dashboard():
             continue
 
         if is_admin:
-            # Admin sees total annotations across all experts
-            annot_count = TextAnnotation.query.filter_by(
-                post_id=pid, model_name=model_name
-            ).count()
+            # Count distinct comments annotated across all experts
+            annotated_comments = db.session.query(
+                db.func.count(db.func.distinct(TextAnnotation.item_index))
+            ).filter_by(post_id=pid, model_name=model_name).scalar() or 0
             # Count how many distinct experts have annotated this post
             annotator_count = db.session.query(
                 db.func.count(db.func.distinct(TextAnnotation.expert_id))
             ).filter_by(post_id=pid, model_name=model_name).scalar() or 0
         else:
-            annot_count = TextAnnotation.query.filter_by(
-                expert_id=expert.id, post_id=pid, model_name=model_name
-            ).count()
+            annotated_comments = db.session.query(
+                db.func.count(db.func.distinct(TextAnnotation.item_index))
+            ).filter_by(expert_id=expert.id, post_id=pid, model_name=model_name).scalar() or 0
             annotator_count = 0
 
         posts_list.append({
@@ -144,7 +144,7 @@ def dashboard():
             "title": post["title"],
             "class_label": post["class_label"],
             "num_comments": len(post["advice"]),
-            "annotations": annot_count,
+            "annotated_comments": annotated_comments,
             "annotator_count": annotator_count,
             "link": post["link"],
             "split": post.get("split", ""),

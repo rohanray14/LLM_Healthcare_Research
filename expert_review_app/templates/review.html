@@ -19,7 +19,7 @@
 <!-- Post header -->
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between">
-        <h6 class="mb-0">{{ post.title }}</h6>
+        <h6 class="mb-0"><code class="me-2">{{ post.post_id }}</code>{{ post.title }}</h6>
         <div>
             <span class="badge bg-secondary">{{ post.class_label }}</span>
             <a href="{{ post.link }}" target="_blank" class="btn btn-sm btn-outline-danger ms-1">Reddit</a>

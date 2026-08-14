@@ -21,7 +21,7 @@
 
 <!-- Progress -->
 {% set total_posts = posts | length %}
-{% set annotated_posts = posts | selectattr('annotations', 'gt', 0) | list | length %}
+{% set annotated_posts = posts | selectattr('annotated_comments', 'gt', 0) | list | length %}
 {% set pct = (annotated_posts / total_posts * 100) if total_posts > 0 else 0 %}
 <div class="progress mb-3" style="height: 22px;">
     <div class="progress-bar bg-success" style="width: {{ pct|round(1) }}%">
@@ -39,7 +39,7 @@
                 <th>Themes</th>
                 {% if is_admin %}<th>Split</th>{% endif %}
                 <th>Comments</th>
-                <th>Annotations</th>
+                <th>Annotated</th>
                 {% if is_admin %}<th>Annotators</th>{% endif %}
                 <th>Action</th>
             </tr>
@@ -54,11 +54,7 @@
                 {% if is_admin %}<td><span class="badge bg-{{ 'primary' if p.split == 'dev' else 'warning text-dark' }}">{{ p.split }}</span></td>{% endif %}
                 <td>{{ p.num_comments }}</td>
                 <td>
-                    {% if p.annotations > 0 %}
-                    <span class="badge bg-info">{{ p.annotations }}</span>
-                    {% else %}
-                    <span class="text-muted">--</span>
-                    {% endif %}
+                    <span class="badge bg-{{ 'success' if p.annotated_comments == p.num_comments else 'info' }}">{{ p.annotated_comments }}/{{ p.num_comments }}</span>
                 </td>
                 {% if is_admin %}
                 <td>

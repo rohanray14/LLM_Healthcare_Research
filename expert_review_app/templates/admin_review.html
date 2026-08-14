@@ -26,7 +26,7 @@
 <!-- Post header -->
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between">
-        <h6 class="mb-0">{{ post.title }}</h6>
+        <h6 class="mb-0"><code class="me-2">{{ post.post_id }}</code>{{ post.title }}</h6>
         <div>
             <span class="badge bg-secondary">{{ post.class_label }}</span>
             <span class="badge bg-info">{{ all_annotations|length }} annotations from {{ expert_names|length }} annotator{{ 's' if expert_names|length != 1 }}</span>
@@ -47,25 +47,13 @@
     </div>
 
     <!-- RIGHT: Comments with all experts' annotations -->
-    <div class="col-lg-8">
+    <div class="col-lg-8" id="commentsContainer">
         {% if not expert_names %}
         <div class="alert alert-warning">No annotations yet for this post.</div>
         {% endif %}
 
         {% for item in post.advice %}
-        <div class="card mb-3 section-card comment-annotation-card" data-section="advice" data-index="{{ loop.index0 }}">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Comment: <code>{{ item.comment_id or ('C' ~ loop.index) }}</code></h6>
-                <span class="badge bg-info text-dark">{{ item.agreement }}</span>
-            </div>
-            <div class="card-body">
-                <div class="clinical-comment-text admin-comment-text"
-                     data-section="advice"
-                     data-index="{{ loop.index0 }}"
-                     style="font-size:0.88rem; line-height:1.7; padding:10px; border:1px dashed #ccc; border-radius:4px; white-space:pre-wrap; word-break:break-word;">{{ item.advice }}</div>
-                <div class="annotations-list mt-2" data-section="advice" data-index="{{ loop.index0 }}"></div>
-            </div>
-        </div>
+        <div class="comment-source d-none" data-index="{{ loop.index0 }}" data-comment-id="{{ item.comment_id or ('C' ~ loop.index) }}" data-agreement="{{ item.agreement }}">{{ item.advice }}</div>
         {% endfor %}
     </div>
 </div>
@@ -75,6 +63,7 @@
 {% block scripts %}
 <script>
 const allAnnotations = {{ all_annotations | tojson }};
+const commentCount = {{ post.advice | length }};
 const expertColors = {};
 const colorPalette = ['#198754', '#0d6efd', '#dc3545', '#fd7e14', '#6f42c1', '#20c997', '#e83e8c', '#6610f2'];
 let colorIdx = 0;
@@ -84,11 +73,16 @@ expertNames.forEach(name => {
     colorIdx++;
 });
 
-function escHtml(t) {
-    const d = document.createElement('div');
-    d.textContent = t;
-    return d.innerHTML;
-}
+// Store raw text and metadata per comment
+const rawTexts = {};
+const commentMeta = {};
+document.querySelectorAll('.comment-source').forEach(el => {
+    const idx = parseInt(el.dataset.index);
+    rawTexts[idx] = el.textContent;
+    commentMeta[idx] = { commentId: el.dataset.commentId, agreement: el.dataset.agreement };
+});
+
+function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
 function getLikertLabel(verdict) {
     const labels = {'1': 'Strongly Agree', '2': 'Agree', '3': 'Disagree', '4': 'Strongly Disagree', 'unsure': 'Unsure'};
@@ -103,77 +97,109 @@ function getLikertBadgeClass(verdict) {
     return 'secondary';
 }
 
-function getVerdictTooltip(a) {
-    let tip = `${a.expert_name} — FA: ${getLikertLabel(a.verdict)}, PH: ${getLikertLabel(a.harm_verdict)}`;
-    if (a.annotation) tip += ` — ${a.annotation}`;
-    return tip;
+function highlightText(rawText, spans, color) {
+    spans.sort((a, b) => a.start - b.start);
+    const merged = [];
+    for (const h of spans) {
+        if (merged.length && merged[merged.length - 1].end > h.start) continue;
+        merged.push(h);
+    }
+    let html = '', cursor = 0;
+    for (const h of merged) {
+        if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
+        const title = `FA: ${getLikertLabel(h.verdict)}, PH: ${getLikertLabel(h.harm_verdict)}${h.annotation ? ' — ' + h.annotation : ''}`;
+        html += `<mark style="background:${color}22; border-bottom:2px solid ${color}; cursor:pointer;" title="${escHtml(title)}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
+        cursor = h.end;
+    }
+    if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
+    return html;
 }
 
-function renderAdminHighlights(filterExpert) {
-    const filtered = filterExpert === 'all' ? allAnnotations : allAnnotations.filter(a => a.expert_name === filterExpert);
+function renderAll(filter) {
+    const container = document.getElementById('commentsContainer');
+    container.querySelectorAll('.comment-card-rendered').forEach(el => el.remove());
 
-    document.querySelectorAll('.admin-comment-text').forEach(el => {
-        const section = el.dataset.section;
-        const index = parseInt(el.dataset.index);
-        const rawText = el.textContent || el.innerText;
+    const annots = filter === 'all' ? allAnnotations : allAnnotations.filter(a => a.expert_name === filter);
 
-        const annots = filtered.filter(a => a.section === section && a.item_index === index);
+    // Get experts with annotations
+    const expertSet = new Set();
+    annots.forEach(a => expertSet.add(a.expert_name));
+    const expertList = [...expertSet].sort();
 
-        // Build highlights sorted by start
-        let highlights = annots.map(a => ({
-            start: a.start, end: a.end, expert: a.expert_name, verdict: a.verdict,
-            harm_verdict: a.harm_verdict || '', annotation: a.annotation,
-            factual_reasoning: a.factual_reasoning, harm_reasoning: a.harm_reasoning, id: a.id
-        })).sort((a, b) => a.start - b.start);
+    for (let idx = 0; idx < commentCount; idx++) {
+        const rawText = rawTexts[idx];
+        const meta = commentMeta[idx];
 
-        // Remove overlaps (keep all, just render sequentially)
-        let html = '';
-        let cursor = 0;
-        for (const h of highlights) {
-            if (h.start < cursor) continue; // skip overlap
-            if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
-            const color = expertColors[h.expert] || '#6c757d';
-            const title = `${h.expert} — FA: ${getLikertLabel(h.verdict)}, PH: ${getLikertLabel(h.harm_verdict)}${h.annotation ? ' — ' + h.annotation : ''}`;
-            html += `<mark style="background:${color}22; border-bottom:2px solid ${color}; cursor:pointer;" title="${escHtml(title)}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
-            cursor = h.end;
+        if (expertList.length === 0) {
+            const card = document.createElement('div');
+            card.className = 'card mb-3 comment-card-rendered';
+            card.innerHTML = `
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Comment: <code>${meta.commentId}</code></h6>
+                    <span class="badge bg-info text-dark">${meta.agreement}</span>
+                </div>
+                <div class="card-body">
+                    <div style="font-size:0.88rem; line-height:1.7; white-space:pre-wrap; word-break:break-word;">${escHtml(rawText)}</div>
+                </div>
+            `;
+            container.appendChild(card);
+            continue;
         }
-        if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
-        el.innerHTML = html;
-    });
 
-    // Render annotation list below each comment
-    document.querySelectorAll('.annotations-list').forEach(el => { el.innerHTML = ''; });
-    filtered.forEach(a => {
-        const container = document.querySelector(`.annotations-list[data-section="${a.section}"][data-index="${a.item_index}"]`);
-        if (!container) return;
-        const color = expertColors[a.expert_name] || '#6c757d';
-        const div = document.createElement('div');
-        div.className = 'annotation-tag';
-        div.dataset.expert = a.expert_name;
-        const fCls = getLikertBadgeClass(a.verdict);
-        const hCls = getLikertBadgeClass(a.harm_verdict);
-        div.innerHTML = `
-            <span class="badge" style="background:${color};">${a.expert_name}</span>
-            <span class="badge bg-${fCls} ms-1" title="Factual accuracy">FA: ${getLikertLabel(a.verdict)}</span>
-            <span class="badge bg-${hCls} ms-1" title="Potential harm">PH: ${getLikertLabel(a.harm_verdict)}</span>
-            <em class="ms-1">"${escHtml(a.text.substring(0, 80))}${a.text.length > 80 ? '...' : ''}"</em>
-            ${a.annotation ? ` — ${escHtml(a.annotation)}` : ''}
-            ${a.factual_reasoning ? ` <span class="badge bg-warning text-dark ms-1">Factual: ${escHtml(a.factual_reasoning.substring(0, 60))}${a.factual_reasoning.length > 60 ? '...' : ''}</span>` : ''}
-            ${a.harm_reasoning ? ` <span class="badge bg-danger ms-1">Harm: ${escHtml(a.harm_reasoning.substring(0, 60))}${a.harm_reasoning.length > 60 ? '...' : ''}</span>` : ''}
-        `;
-        container.appendChild(div);
-    });
+        expertList.forEach(expertName => {
+            const expertAnnots = annots.filter(a => a.section === 'advice' && a.item_index === idx && a.expert_name === expertName);
+            if (expertAnnots.length === 0) return;
+
+            const color = expertColors[expertName] || '#6c757d';
+            const card = document.createElement('div');
+            card.className = 'card mb-2 comment-card-rendered';
+            card.style.borderLeft = `4px solid ${color}`;
+            card.dataset.expert = expertName;
+
+            const textHtml = highlightText(rawText, expertAnnots, color);
+
+            let annotsHtml = '';
+            expertAnnots.forEach(a => {
+                const fCls = getLikertBadgeClass(a.verdict);
+                const hCls = getLikertBadgeClass(a.harm_verdict);
+                annotsHtml += `
+                    <div class="annotation-tag">
+                        <span class="badge bg-${fCls}" title="Factual accuracy">FA: ${getLikertLabel(a.verdict)}</span>
+                        <span class="badge bg-${hCls} ms-1" title="Potential harm">PH: ${getLikertLabel(a.harm_verdict)}</span>
+                        <em class="ms-1">"${escHtml(a.text.substring(0, 80))}${a.text.length > 80 ? '...' : ''}"</em>
+                        ${a.annotation ? ` — ${escHtml(a.annotation)}` : ''}
+                        ${a.factual_reasoning ? ` <span class="badge bg-warning text-dark ms-1">Factual: ${escHtml(a.factual_reasoning.substring(0, 60))}${a.factual_reasoning.length > 60 ? '...' : ''}</span>` : ''}
+                        ${a.harm_reasoning ? ` <span class="badge bg-danger ms-1">Harm: ${escHtml(a.harm_reasoning.substring(0, 60))}${a.harm_reasoning.length > 60 ? '...' : ''}</span>` : ''}
+                    </div>
+                `;
+            });
+
+            card.innerHTML = `
+                <div class="card-header py-1 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0" style="font-size:0.85rem;">Comment: <code>${meta.commentId}</code></h6>
+                    <div>
+                        <span class="badge" style="background:${color};">${expertName}</span>
+                        <span class="badge bg-info text-dark ms-1">${meta.agreement}</span>
+                    </div>
+                </div>
+                <div class="card-body py-2">
+                    <div style="font-size:0.88rem; line-height:1.7; white-space:pre-wrap; word-break:break-word;">${textHtml}</div>
+                    ${annotsHtml ? `<div class="mt-2">${annotsHtml}</div>` : ''}
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
 }
 
 // Expert filter
 const filterEl = document.getElementById('expertFilter');
 if (filterEl) {
     filterEl.addEventListener('change', function() {
-        renderAdminHighlights(this.value);
+        renderAll(this.value);
     });
 }
 
-// Initial render
-renderAdminHighlights('all');
+renderAll('all');
 </script>
 {% endblock %}
