@@ -107,7 +107,10 @@ document.querySelectorAll('.delete-expert-btn').forEach(btn => {
         fetch('/admin/delete_expert', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ expert_id: parseInt(this.dataset.expertId) })
-        }).then(r => r.json()).then(d => { if (d.ok) location.reload(); });
+        })
+        .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(`HTTP ${r.status}: ${t}`); }); return r.json(); })
+        .then(d => { if (d.ok) location.reload(); else alert(d.error || 'Failed to delete'); })
+        .catch(err => alert('Delete failed: ' + err.message));
     });
 });
 

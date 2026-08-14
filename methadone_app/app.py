@@ -413,6 +413,7 @@ def admin_delete_expert():
         return jsonify({"error": "Expert not found"}), 404
     if target.username == "admin":
         return jsonify({"error": "Cannot delete admin"}), 400
+    CommentCode.query.filter_by(expert_id=expert_id).delete()
     TextAnnotation.query.filter_by(expert_id=expert_id).delete()
     Assignment.query.filter_by(expert_id=expert_id).delete()
     db.session.delete(target)
