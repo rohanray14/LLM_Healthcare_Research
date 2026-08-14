@@ -485,12 +485,34 @@ def admin():
                 "num_comments": len(post["advice"]),
             }
 
+    # Per-expert stats: total comments assigned, total words, annotations count
+    expert_stats = {}
+    for e in experts:
+        if e.username == "admin":
+            continue
+        total_comments = 0
+        total_words = 0
+        for pid in assignments.get(e.id, []):
+            key = (pid, "comment_annotations")
+            post = POSTS.get(key)
+            if post:
+                for item in post["advice"]:
+                    total_comments += 1
+                    total_words += len((item.get("advice") or "").split())
+        annot_count = TextAnnotation.query.filter_by(expert_id=e.id).count()
+        expert_stats[e.id] = {
+            "total_comments": total_comments,
+            "total_words": total_words,
+            "annotations": annot_count,
+        }
+
     return render_template(
         "admin.html",
         experts=experts,
         assignments=assignments,
         taken_by=taken_by,
         post_meta=post_meta,
+        expert_stats=expert_stats,
         all_post_ids=POST_IDS,
         username=session.get("username"),
     )
