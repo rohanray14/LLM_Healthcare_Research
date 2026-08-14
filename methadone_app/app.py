@@ -554,34 +554,43 @@ SEED_USERS = {"admin": "admin123"}
 
 def migrate_schema():
     """Add missing columns to existing tables (SQLAlchemy create_all won't alter tables)."""
+    import logging
     from sqlalchemy import inspect, text
-    inspector = inspect(db.engine)
+    try:
+        inspector = inspect(db.engine)
+        tables = inspector.get_table_names()
+        logging.info(f"[migrate] Existing tables: {tables}")
 
-    if "expert" in inspector.get_table_names():
-        cols = [c["name"] for c in inspector.get_columns("expert")]
-        if "password_hash" not in cols:
-            db.session.execute(text("ALTER TABLE expert ADD COLUMN password_hash VARCHAR(256)"))
-        if "password_plain" not in cols:
-            db.session.execute(text("ALTER TABLE expert ADD COLUMN password_plain VARCHAR(256)"))
-        db.session.commit()
+        if "expert" in tables:
+            cols = [c["name"] for c in inspector.get_columns("expert")]
+            if "password_hash" not in cols:
+                db.session.execute(text("ALTER TABLE expert ADD COLUMN password_hash VARCHAR(256)"))
+            if "password_plain" not in cols:
+                db.session.execute(text("ALTER TABLE expert ADD COLUMN password_plain VARCHAR(256)"))
+            db.session.commit()
 
-    if "comment_code" in inspector.get_table_names():
-        cols = [c["name"] for c in inspector.get_columns("comment_code")]
-        if "reason" not in cols:
-            db.session.execute(text("ALTER TABLE comment_code ADD COLUMN reason TEXT DEFAULT ''"))
-        db.session.commit()
+        if "comment_code" in tables:
+            cols = [c["name"] for c in inspector.get_columns("comment_code")]
+            if "reason" not in cols:
+                db.session.execute(text("ALTER TABLE comment_code ADD COLUMN reason TEXT DEFAULT ''"))
+            db.session.commit()
 
-    if "text_annotation" in inspector.get_table_names():
-        cols = [c["name"] for c in inspector.get_columns("text_annotation")]
-        for col, coltype in [
-            ("item_index", "INTEGER DEFAULT 0"),
-            ("harm_verdict", "VARCHAR(20)"),
-            ("factual_reasoning", "TEXT DEFAULT ''"),
-            ("harm_reasoning", "TEXT DEFAULT ''"),
-        ]:
-            if col not in cols:
-                db.session.execute(text(f"ALTER TABLE text_annotation ADD COLUMN {col} {coltype}"))
-        db.session.commit()
+        if "text_annotation" in tables:
+            cols = [c["name"] for c in inspector.get_columns("text_annotation")]
+            for col, coltype in [
+                ("item_index", "INTEGER DEFAULT 0"),
+                ("harm_verdict", "VARCHAR(20)"),
+                ("factual_reasoning", "TEXT DEFAULT ''"),
+                ("harm_reasoning", "TEXT DEFAULT ''"),
+            ]:
+                if col not in cols:
+                    db.session.execute(text(f"ALTER TABLE text_annotation ADD COLUMN {col} {coltype}"))
+            db.session.commit()
+
+        logging.info("[migrate] Schema migration complete")
+    except Exception as e:
+        logging.error(f"[migrate] Schema migration error: {e}")
+        db.session.rollback()
 
 
 def seed_users():
@@ -595,11 +604,33 @@ def seed_users():
     db.session.commit()
 
 
+@app.route("/health")
+def health():
+    try:
+        count = Expert.query.count()
+        return jsonify({"status": "ok", "experts": count, "posts": len(POST_IDS),
+                        "db_uri": "postgresql" if "postgresql" in app.config["SQLALCHEMY_DATABASE_URI"] else "sqlite"})
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
+import logging
+logging.basicConfig(level=logging.INFO)
+
 with app.app_context():
-    db.create_all()
-    migrate_schema()
-    seed_users()
-    init_data()
+    db_uri = app.config["SQLALCHEMY_DATABASE_URI"]
+    logging.info(f"[startup] DB type: {'postgresql' if 'postgresql' in db_uri else 'sqlite'}")
+    try:
+        db.create_all()
+        logging.info("[startup] Tables created/verified")
+        migrate_schema()
+        seed_users()
+        logging.info("[startup] Seed complete")
+        init_data()
+        logging.info(f"[startup] Loaded {len(POST_IDS)} posts")
+    except Exception as e:
+        logging.error(f"[startup] FATAL: {e}")
+        raise
 
 if __name__ == "__main__":
     app.run(debug=True, port=5002, use_reloader=False)
