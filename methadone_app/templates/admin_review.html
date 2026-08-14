@@ -40,16 +40,9 @@
             </div>
         </div>
     </div>
-    <div class="col-lg-8">
+    <div class="col-lg-8" id="commentsContainer">
         {% for item in post.advice %}
-        <div class="card mb-3 comment-annotation-card">
-            <div class="card-header"><h6 class="mb-0">Comment {{ loop.index }}</h6></div>
-            <div class="card-body">
-                <div class="comment-codes-display mb-2" data-index="{{ loop.index0 }}"></div>
-                <div class="clinical-comment-text" data-index="{{ loop.index0 }}">{{ item.advice }}</div>
-                <div class="annotations-list mt-2" data-index="{{ loop.index0 }}"></div>
-            </div>
-        </div>
+        <div class="comment-source d-none" data-index="{{ loop.index0 }}" data-num="{{ loop.index }}">{{ item.advice }}</div>
         {% endfor %}
     </div>
 </div>
@@ -61,89 +54,119 @@
 const allAnnotations = {{ all_annotations | tojson }};
 const allCodes = {{ all_codes | tojson }};
 const commentCodesConfig = {{ comment_codes | tojson }};
+const commentCount = {{ post.advice | length }};
 const expertColors = {};
 const colors = ['#0d6efd', '#198754', '#dc3545', '#fd7e14', '#6610f2', '#20c997', '#d63384'];
 let ci = 0;
 
+// Store raw text per comment
+const rawTexts = {};
+document.querySelectorAll('.comment-source').forEach(el => {
+    rawTexts[parseInt(el.dataset.index)] = el.textContent;
+});
+
 function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
+function getExpertColor(name) {
+    if (!expertColors[name]) expertColors[name] = colors[ci++ % colors.length];
+    return expertColors[name];
+}
+
+function highlightText(rawText, spans) {
+    spans.sort((a, b) => a.start - b.start);
+    const merged = [];
+    for (const h of spans) {
+        if (merged.length && merged[merged.length - 1].end > h.start) continue;
+        merged.push(h);
+    }
+    let html = '', cursor = 0;
+    for (const h of merged) {
+        if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
+        html += `<mark style="background:#ef444422; border-bottom:2px solid #ef4444;">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
+        cursor = h.end;
+    }
+    if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
+    return html;
+}
 
 function renderAll(filter) {
+    const container = document.getElementById('commentsContainer');
+    // Clear previous rendered cards (keep hidden source divs)
+    container.querySelectorAll('.comment-card-rendered').forEach(el => el.remove());
+
     const annots = filter === 'all' ? allAnnotations : allAnnotations.filter(a => a.expert_name === filter);
+    const codes = filter === 'all' ? allCodes : allCodes.filter(c => c.expert_name === filter);
 
-    document.querySelectorAll('.clinical-comment-text').forEach(el => {
-        const idx = parseInt(el.dataset.index);
-        const rawText = el.textContent || el.innerText;
-        const relevant = annots.filter(a => a.item_index === idx);
-        relevant.sort((a, b) => a.start - b.start);
+    // Get list of experts who have annotated
+    const expertSet = new Set();
+    annots.forEach(a => expertSet.add(a.expert_name));
+    codes.forEach(c => expertSet.add(c.expert_name));
+    const expertList = [...expertSet].sort();
 
-        const merged = [];
-        for (const h of relevant) {
-            if (merged.length && merged[merged.length - 1].end > h.start) continue;
-            merged.push(h);
+    for (let idx = 0; idx < commentCount; idx++) {
+        const rawText = rawTexts[idx];
+        const commentNum = idx + 1;
+
+        if (expertList.length === 0) {
+            // No annotations — show plain comment
+            const card = document.createElement('div');
+            card.className = 'card mb-3 comment-card-rendered';
+            card.innerHTML = `
+                <div class="card-header"><h6 class="mb-0">Comment ${commentNum}</h6></div>
+                <div class="card-body">
+                    <div style="font-size:0.85rem; white-space:pre-wrap;">${escHtml(rawText)}</div>
+                </div>
+            `;
+            container.appendChild(card);
+            continue;
         }
 
-        let html = '', cursor = 0;
-        for (const h of merged) {
-            if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
-            if (!expertColors[h.expert_name]) expertColors[h.expert_name] = colors[ci++ % colors.length];
-            const color = expertColors[h.expert_name];
-            html += `<mark style="background:${color}22; border-bottom:2px solid ${color};" title="${escHtml(h.expert_name)}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
-            cursor = h.end;
-        }
-        if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
-        el.innerHTML = html;
-    });
+        // One card per expert per comment
+        expertList.forEach(expertName => {
+            const expertAnnots = annots.filter(a => a.item_index === idx && a.expert_name === expertName);
+            const expertCodes = codes.filter(c => c.comment_index === idx && c.expert_name === expertName);
 
-    // Group annotations by expert for each comment
-    document.querySelectorAll('.annotations-list').forEach(el => { el.innerHTML = ''; });
-    const byExpertByComment = {};
-    annots.forEach(a => {
-        const key = `${a.item_index}_${a.expert_name}`;
-        if (!byExpertByComment[key]) byExpertByComment[key] = { expert: a.expert_name, idx: a.item_index, spans: [] };
-        byExpertByComment[key].spans.push(a);
-    });
-    Object.values(byExpertByComment).forEach(group => {
-        const container = document.querySelector(`.annotations-list[data-index="${group.idx}"]`);
-        if (!container) return;
-        if (!expertColors[group.expert]) expertColors[group.expert] = colors[ci++ % colors.length];
-        const color = expertColors[group.expert];
-        const block = document.createElement('div');
-        block.className = 'border rounded p-2 mb-2';
-        block.style.borderLeft = `3px solid ${color}`;
-        block.dataset.expert = group.expert;
-        let html = `<div class="mb-1"><span class="badge" style="background:${color};">${group.expert}</span></div>`;
-        group.spans.forEach(a => {
-            html += `<div class="annotation-tag"><span class="badge" style="background:#fee2e2; color:#ef4444; border:1px solid #ef4444;">CLAIM</span> <em class="ms-1">"${escHtml(a.text.substring(0, 100))}${a.text.length > 100 ? '...' : ''}"</em></div>`;
+            // Skip if this expert has nothing for this comment
+            if (expertAnnots.length === 0 && expertCodes.length === 0) return;
+
+            const color = getExpertColor(expertName);
+            const card = document.createElement('div');
+            card.className = 'card mb-2 comment-card-rendered';
+            card.style.borderLeft = `4px solid ${color}`;
+            card.dataset.expert = expertName;
+
+            // Codes row
+            let codesHtml = '';
+            if (expertCodes.length > 0) {
+                const entry = expertCodes[0];
+                codesHtml = entry.codes.map(c => {
+                    const info = commentCodesConfig[c] || {};
+                    return `<span class="badge ms-1" style="background:${info.color || '#eee'}; color:${info.border_color || '#333'}; border:1px solid ${info.border_color || '#ccc'};">${c}</span>`;
+                }).join('');
+                if (entry.exclude_reason) {
+                    codesHtml += ` <em class="ms-1 text-muted" style="font-size:0.8rem;">(${escHtml(entry.exclude_reason)})</em>`;
+                }
+            }
+
+            // Highlighted text
+            const textHtml = expertAnnots.length > 0 ? highlightText(rawText, expertAnnots) : escHtml(rawText);
+
+            card.innerHTML = `
+                <div class="card-header py-1 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0" style="font-size:0.85rem;">Comment ${commentNum}</h6>
+                    <span class="badge" style="background:${color};">${expertName}</span>
+                </div>
+                <div class="card-body py-2">
+                    ${codesHtml ? `<div class="mb-2">${codesHtml}</div>` : ''}
+                    <div style="font-size:0.85rem; white-space:pre-wrap;">${textHtml}</div>
+                </div>
+            `;
+            container.appendChild(card);
         });
-        block.innerHTML = html;
-        container.appendChild(block);
-    });
+    }
 }
 
-function renderCodes(filter) {
-    document.querySelectorAll('.comment-codes-display').forEach(el => { el.innerHTML = ''; });
-    const filtered = filter === 'all' ? allCodes : allCodes.filter(c => c.expert_name === filter);
-    filtered.forEach(entry => {
-        const container = document.querySelector(`.comment-codes-display[data-index="${entry.comment_index}"]`);
-        if (!container) return;
-        if (!expertColors[entry.expert_name]) expertColors[entry.expert_name] = colors[ci++ % colors.length];
-        const color = expertColors[entry.expert_name];
-        const div = document.createElement('div');
-        div.className = 'mb-1';
-        div.dataset.expert = entry.expert_name;
-        div.innerHTML = `<span class="badge" style="background:${color};">${entry.expert_name}</span> ` +
-            entry.codes.map(c => {
-                const info = commentCodesConfig[c] || {};
-                return `<span class="badge ms-1" style="background:${info.color || '#eee'}; color:${info.border_color || '#333'}; border:1px solid ${info.border_color || '#ccc'};">${c}</span>`;
-            }).join('') +
-            (entry.exclude_reason ? ` <em class="ms-1 text-muted" style="font-size:0.8rem;">(${escHtml(entry.exclude_reason)})</em>` : '');
-        container.appendChild(div);
-    });
-}
-
-document.getElementById('expertFilter').addEventListener('change', function() { renderAll(this.value); renderCodes(this.value); });
+document.getElementById('expertFilter').addEventListener('change', function() { renderAll(this.value); });
 renderAll('all');
-renderCodes('all');
 </script>
 {% endblock %}
