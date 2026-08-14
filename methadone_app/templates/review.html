@@ -19,7 +19,7 @@
 <!-- Post header -->
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between">
-        <h6 class="mb-0">{{ post.title }}</h6>
+        <h6 class="mb-0"><code class="me-2">{{ post.post_id }}</code>{{ post.title }}</h6>
         <a href="{{ post.link }}" target="_blank" class="btn btn-sm btn-outline-danger">Reddit</a>
     </div>
 </div>
@@ -275,6 +275,10 @@ function hasSpansForComment(idx) {
     return existingAnnotations.some(a => a.item_index === idx);
 }
 
+function isCommentExcluded(idx) {
+    return getCodesForComment(idx).includes('EXCLUDE');
+}
+
 function syncClaimCode(idx) {
     const codes = getCodesForComment(idx);
     const hasClaim = codes.includes('CLAIM');
@@ -298,21 +302,34 @@ function renderCodeButtons() {
         const idx = parseInt(btn.closest('.comment-codes-bar').dataset.index);
         const codes = getCodesForComment(idx);
         const info = COMMENT_CODES[code];
-        if (codes.includes(code)) {
-            btn.style.background = info.color;
-            btn.style.color = info.border_color;
-            btn.style.fontWeight = 'bold';
-        } else {
+        const excluded = isCommentExcluded(idx);
+        if (excluded) {
+            btn.disabled = true;
             btn.style.background = 'transparent';
-            btn.style.color = info.border_color;
+            btn.style.color = '#ccc';
+            btn.style.borderColor = '#ccc';
             btn.style.fontWeight = 'normal';
+            btn.style.cursor = 'not-allowed';
+        } else {
+            btn.disabled = false;
+            btn.style.borderColor = info.border_color;
+            btn.style.cursor = 'pointer';
+            if (codes.includes(code)) {
+                btn.style.background = info.color;
+                btn.style.color = info.border_color;
+                btn.style.fontWeight = 'bold';
+            } else {
+                btn.style.background = 'transparent';
+                btn.style.color = info.border_color;
+                btn.style.fontWeight = 'normal';
+            }
         }
     });
 
     document.querySelectorAll('.claim-badge').forEach(badge => {
         const idx = parseInt(badge.dataset.index);
         const codes = getCodesForComment(idx);
-        if (codes.includes('CLAIM')) {
+        if (codes.includes('CLAIM') && !isCommentExcluded(idx)) {
             badge.classList.remove('d-none');
         } else {
             badge.classList.add('d-none');
@@ -323,10 +340,10 @@ function renderCodeButtons() {
     document.querySelectorAll('.exclude-toggle-btn').forEach(btn => {
         const idx = parseInt(btn.dataset.index);
         const codes = getCodesForComment(idx);
-        const isExcluded = codes.includes('EXCLUDE');
+        const excluded = codes.includes('EXCLUDE');
         const reasonBox = document.querySelector(`.exclude-reason-box[data-index="${idx}"]`);
         const reasonInput = document.querySelector(`.exclude-reason-input[data-index="${idx}"]`);
-        if (isExcluded) {
+        if (excluded) {
             btn.style.background = '#f1f5f9';
             btn.style.color = '#64748b';
             btn.style.fontWeight = 'bold';
@@ -338,6 +355,24 @@ function renderCodeButtons() {
             btn.style.fontWeight = 'normal';
             reasonBox.classList.add('d-none');
         }
+    });
+
+    // Dim comment text + disable highlighting when excluded
+    document.querySelectorAll('.clinical-comment-text').forEach(el => {
+        const idx = parseInt(el.dataset.index);
+        if (isCommentExcluded(idx)) {
+            el.style.opacity = '0.4';
+            el.style.pointerEvents = 'none';
+        } else {
+            el.style.opacity = '1';
+            el.style.pointerEvents = 'auto';
+        }
+    });
+
+    // Hide annotation summaries when excluded
+    document.querySelectorAll('.annotations-list').forEach(el => {
+        const idx = parseInt(el.dataset.index);
+        el.style.display = isCommentExcluded(idx) ? 'none' : '';
     });
 }
 
@@ -357,8 +392,9 @@ function saveCommentCodes(idx, codes) {
 // Toggle buttons for non-CLAIM codes
 document.querySelectorAll('.code-toggle-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-        const code = this.dataset.code;
         const idx = parseInt(this.closest('.comment-codes-bar').dataset.index);
+        if (isCommentExcluded(idx)) return;
+        const code = this.dataset.code;
         let codes = getCodesForComment(idx);
         if (codes.includes(code)) {
             codes = codes.filter(c => c !== code);
@@ -371,7 +407,7 @@ document.querySelectorAll('.code-toggle-btn').forEach(btn => {
     });
 });
 
-// Exclude toggle
+// Exclude toggle — clears all other codes and spans when activated
 document.querySelectorAll('.exclude-toggle-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const idx = parseInt(this.dataset.index);
@@ -380,7 +416,15 @@ document.querySelectorAll('.exclude-toggle-btn').forEach(btn => {
             codes = codes.filter(c => c !== 'EXCLUDE');
             excludeReasons[String(idx)] = '';
         } else {
-            codes.push('EXCLUDE');
+            // Clear all other codes, keep only EXCLUDE
+            codes = ['EXCLUDE'];
+            // Delete all spans for this comment
+            const spansToDelete = existingAnnotations.filter(a => a.item_index === idx);
+            spansToDelete.forEach(a => {
+                fetch(`/api/annotation/${a.id}/delete`, { method: 'POST' });
+            });
+            existingAnnotations = existingAnnotations.filter(a => a.item_index !== idx);
+            renderHighlights();
         }
         setCodesForComment(idx, codes);
         saveCommentCodes(idx, codes);

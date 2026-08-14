@@ -157,19 +157,23 @@ def dashboard():
             continue
 
         if is_admin:
-            annot_count = TextAnnotation.query.filter_by(post_id=pid).count()
+            coded_count = db.session.query(
+                db.func.count(db.func.distinct(CommentCode.comment_index))
+            ).filter_by(post_id=pid).scalar() or 0
             annotator_count = db.session.query(
-                db.func.count(db.func.distinct(TextAnnotation.expert_id))
+                db.func.count(db.func.distinct(CommentCode.expert_id))
             ).filter_by(post_id=pid).scalar() or 0
         else:
-            annot_count = TextAnnotation.query.filter_by(expert_id=expert.id, post_id=pid).count()
+            coded_count = db.session.query(
+                db.func.count(db.func.distinct(CommentCode.comment_index))
+            ).filter_by(expert_id=expert.id, post_id=pid).scalar() or 0
             annotator_count = 0
 
         posts_list.append({
             "post_id": pid,
             "title": post["title"],
             "num_comments": len(post["advice"]),
-            "annotations": annot_count,
+            "coded_comments": coded_count,
             "annotator_count": annotator_count,
             "link": post["link"],
         })
@@ -348,8 +352,32 @@ def admin():
         if post:
             post_meta[pid] = {"num_comments": len(post["advice"])}
 
+    # Per-expert stats: total comments assigned, total words, comments annotated
+    expert_stats = {}
+    for e in experts:
+        if e.username == "admin":
+            continue
+        total_comments = 0
+        total_words = 0
+        for pid in assignments.get(e.id, []):
+            post = POSTS.get(pid)
+            if post:
+                for item in post["advice"]:
+                    total_comments += 1
+                    total_words += len((item.get("advice") or "").split())
+        # Comments with at least one code assigned
+        coded_comments = db.session.query(
+            db.func.count(db.func.distinct(CommentCode.comment_index))
+        ).filter_by(expert_id=e.id).scalar() or 0
+        expert_stats[e.id] = {
+            "total_comments": total_comments,
+            "total_words": total_words,
+            "coded_comments": coded_comments,
+        }
+
     return render_template("admin.html", experts=experts, assignments=assignments,
                            taken_by=taken_by, post_meta=post_meta,
+                           expert_stats=expert_stats,
                            all_post_ids=POST_IDS, username=session.get("username"))
 
 
@@ -524,19 +552,52 @@ def admin_review(post_id):
 SEED_USERS = {"admin": "admin123"}
 
 
+def migrate_schema():
+    """Add missing columns to existing tables (SQLAlchemy create_all won't alter tables)."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+
+    if "expert" in inspector.get_table_names():
+        cols = [c["name"] for c in inspector.get_columns("expert")]
+        if "password_hash" not in cols:
+            db.session.execute(text("ALTER TABLE expert ADD COLUMN password_hash VARCHAR(256)"))
+        if "password_plain" not in cols:
+            db.session.execute(text("ALTER TABLE expert ADD COLUMN password_plain VARCHAR(256)"))
+        db.session.commit()
+
+    if "comment_code" in inspector.get_table_names():
+        cols = [c["name"] for c in inspector.get_columns("comment_code")]
+        if "reason" not in cols:
+            db.session.execute(text("ALTER TABLE comment_code ADD COLUMN reason TEXT DEFAULT ''"))
+        db.session.commit()
+
+    if "text_annotation" in inspector.get_table_names():
+        cols = [c["name"] for c in inspector.get_columns("text_annotation")]
+        for col, coltype in [
+            ("item_index", "INTEGER DEFAULT 0"),
+            ("harm_verdict", "VARCHAR(20)"),
+            ("factual_reasoning", "TEXT DEFAULT ''"),
+            ("harm_reasoning", "TEXT DEFAULT ''"),
+        ]:
+            if col not in cols:
+                db.session.execute(text(f"ALTER TABLE text_annotation ADD COLUMN {col} {coltype}"))
+        db.session.commit()
+
+
 def seed_users():
     for username, password in SEED_USERS.items():
         expert = Expert.query.filter_by(username=username).first()
         if not expert:
             expert = Expert(username=username)
             db.session.add(expert)
-        expert.set_password(password)
-        expert.password_plain = password
+            expert.set_password(password)
+            expert.password_plain = password
     db.session.commit()
 
 
 with app.app_context():
     db.create_all()
+    migrate_schema()
     seed_users()
     init_data()
 

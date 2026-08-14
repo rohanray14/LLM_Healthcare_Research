@@ -37,7 +37,11 @@
             {% if expert.password_plain %}<small class="text-muted ms-2">pw: {{ expert.password_plain }}</small>{% endif %}
         </div>
         <div>
-            <span class="badge bg-info">{{ assignments.get(expert.id, [])|length }} posts assigned</span>
+            <span class="badge bg-info">{{ assignments.get(expert.id, [])|length }} posts</span>
+            {% set stats = expert_stats.get(expert.id, {}) %}
+            <span class="badge bg-secondary ms-1">{{ stats.get('total_comments', 0) }} comments</span>
+            <span class="badge bg-secondary ms-1">{{ '{:,}'.format(stats.get('total_words', 0)) }} words</span>
+            <span class="badge bg-success ms-1">{{ stats.get('coded_comments', 0) }} annotated</span>
             <button class="btn btn-sm btn-outline-primary save-assign-btn ms-2" data-expert-id="{{ expert.id }}">Save Assignments</button>
             <button class="btn btn-sm btn-outline-danger delete-expert-btn ms-1" data-expert-id="{{ expert.id }}">Delete</button>
         </div>
