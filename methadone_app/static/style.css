@@ -1,4 +1,11 @@
+html { scroll-behavior: smooth; }
 body { background: #f7f8fa; font-size: 0.92rem; }
+
+/* Custom scrollbar */
+.source-panel::-webkit-scrollbar { width: 6px; }
+.source-panel::-webkit-scrollbar-track { background: transparent; }
+.source-panel::-webkit-scrollbar-thumb { background: #c1c7cd; border-radius: 3px; }
+.source-panel::-webkit-scrollbar-thumb:hover { background: #a0a8b0; }
 
 /* Source panel (left side) */
 .sticky-panel { position: sticky; top: 1rem; }
