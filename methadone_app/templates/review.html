@@ -29,6 +29,7 @@
     </button>
     <span class="text-muted" style="font-size:0.78rem;">Select mode, then highlight text in any comment</span>
 </div>
+<div class="span-mode-indicator" id="spanModeIndicator"></div>
 
 <!-- Post header -->
 <div class="card mb-3">
@@ -65,7 +66,7 @@
         {% for item in post.advice %}
         <div class="card mb-3 section-card comment-annotation-card" data-index="{{ loop.index0 }}">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Comment {{ loop.index }}</h6>
+                <h6 class="mb-0"><span class="progress-dot" data-index="{{ loop.index0 }}"></span>Comment {{ loop.index }}</h6>
             </div>
             <div class="card-body">
                 <!-- Comment-level codes -->
@@ -170,6 +171,10 @@ function updateSpanModeButtons() {
             btn.classList.remove('active');
         }
     });
+    // Update mode indicator bar
+    const indicator = document.getElementById('spanModeIndicator');
+    const s = SPAN_STYLES[currentSpanMode];
+    indicator.style.background = s.border;
 }
 
 // Keyboard shortcuts: C for CLAIM, H for HEDGED
@@ -450,6 +455,15 @@ function renderCodeButtons() {
         const idx = parseInt(el.dataset.index);
         el.style.display = isCommentExcluded(idx) ? 'none' : '';
     });
+
+    // Progress dots
+    document.querySelectorAll('.progress-dot').forEach(dot => {
+        const idx = parseInt(dot.dataset.index);
+        const codes = getCodesForComment(idx);
+        const hasSpans = existingAnnotations.some(a => a.item_index === idx);
+        const isCoded = codes.length > 0 || hasSpans;
+        dot.classList.toggle('coded', isCoded);
+    });
 }
 
 function saveCommentCodes(idx, codes) {
@@ -540,14 +554,45 @@ document.querySelectorAll('.comment-annotation-card').forEach(card => {
 </script>
 
 <style>
+/* 1. Progress dots */
+.progress-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #d1d5db;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+.progress-dot.coded {
+    background: #22c55e;
+}
+
+/* 2. Rounded cards */
+.comment-annotation-card {
+    border-radius: 10px;
+    overflow: hidden;
+}
+.comment-annotation-card .card-header {
+    border-radius: 10px 10px 0 0;
+}
+
 /* Sticky span mode bar */
 .span-mode-bar {
     position: sticky;
     top: 0;
     z-index: 100;
     background: #fff !important;
-    backdrop-filter: blur(8px);
     box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    border-radius: 8px;
+}
+
+/* 4. Span mode indicator bar */
+.span-mode-indicator {
+    height: 3px;
+    background: #ef4444;
+    margin: -12px 0 12px 0;
+    border-radius: 2px;
 }
 
 /* Span highlights */
@@ -560,10 +605,12 @@ document.querySelectorAll('.comment-annotation-card').forEach(card => {
 /* Keyboard hints */
 kbd { background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 3px; padding: 1px 4px; }
 
-/* Active comment glow */
-.comment-annotation-card {
-    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+/* 7. Card hover lift */
+.comment-annotation-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
+
+/* Active comment glow */
 .comment-annotation-card.comment-active {
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
     border-color: #93c5fd;
