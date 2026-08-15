@@ -16,8 +16,8 @@
     {% else %}<span></span>{% endif %}
 </div>
 
-<!-- Span mode selector -->
-<div class="alert alert-light py-2 mb-3 d-flex align-items-center gap-3" style="border: 2px solid #dee2e6;">
+<!-- Span mode selector (sticky) -->
+<div class="alert alert-light py-2 mb-3 d-flex align-items-center gap-3 span-mode-bar" style="border: 2px solid #dee2e6;">
     <strong style="font-size:0.85rem;">Span Mode:</strong>
     <button type="button" class="btn btn-sm span-mode-btn active" data-mode="CLAIM"
             style="border: 2px solid #ef4444; background: #fee2e2; color: #ef4444; font-weight: bold;">
@@ -520,6 +520,14 @@ document.querySelectorAll('.exclude-reason-input').forEach(input => {
     });
 });
 
+// Active comment glow
+document.querySelectorAll('.comment-annotation-card').forEach(card => {
+    card.addEventListener('mousedown', function() {
+        document.querySelectorAll('.comment-annotation-card').forEach(c => c.classList.remove('comment-active'));
+        this.classList.add('comment-active');
+    });
+});
+
 // Initial render of code buttons + sync CLAIM with existing spans
 (function initCodes() {
     const allIndices = new Set();
@@ -532,9 +540,58 @@ document.querySelectorAll('.exclude-reason-input').forEach(input => {
 </script>
 
 <style>
-.hl-span { cursor: pointer; }
+/* Sticky span mode bar */
+.span-mode-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #fff !important;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+/* Span highlights */
+.hl-span {
+    cursor: pointer;
+    transition: opacity 0.2s ease, background 0.2s ease;
+}
 .hl-span:hover { opacity: 0.7; }
+
+/* Span mode buttons */
+.span-mode-btn {
+    transition: all 0.2s ease;
+}
 .span-mode-btn.active { box-shadow: 0 0 0 3px rgba(0,0,0,0.15); }
+
+/* Keyboard hints */
 kbd { background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 3px; padding: 1px 4px; }
+
+/* Code toggle buttons */
+.code-toggle-btn, .exclude-toggle-btn {
+    transition: all 0.2s ease;
+}
+
+/* Annotation tags fade in */
+.annotation-tag {
+    animation: fadeIn 0.25s ease;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Auto badges */
+.span-badge {
+    transition: opacity 0.2s ease;
+}
+
+/* Active comment glow */
+.comment-annotation-card {
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.comment-annotation-card.comment-active {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+    border-color: #93c5fd;
+}
 </style>
 {% endblock %}
