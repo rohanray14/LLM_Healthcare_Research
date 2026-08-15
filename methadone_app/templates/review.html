@@ -551,39 +551,14 @@ document.querySelectorAll('.comment-annotation-card').forEach(card => {
 }
 
 /* Span highlights */
-.hl-span {
-    cursor: pointer;
-    transition: opacity 0.2s ease, background 0.2s ease;
-}
+.hl-span { cursor: pointer; }
 .hl-span:hover { opacity: 0.7; }
 
 /* Span mode buttons */
-.span-mode-btn {
-    transition: all 0.2s ease;
-}
 .span-mode-btn.active { box-shadow: 0 0 0 3px rgba(0,0,0,0.15); }
 
 /* Keyboard hints */
 kbd { background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 3px; padding: 1px 4px; }
-
-/* Code toggle buttons */
-.code-toggle-btn, .exclude-toggle-btn {
-    transition: all 0.2s ease;
-}
-
-/* Annotation tags fade in */
-.annotation-tag {
-    animation: fadeIn 0.25s ease;
-}
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* Auto badges */
-.span-badge {
-    transition: opacity 0.2s ease;
-}
 
 /* Active comment glow */
 .comment-annotation-card {
