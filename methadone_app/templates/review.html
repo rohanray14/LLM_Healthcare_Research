@@ -16,6 +16,20 @@
     {% else %}<span></span>{% endif %}
 </div>
 
+<!-- Span mode selector -->
+<div class="alert alert-light py-2 mb-3 d-flex align-items-center gap-3" style="border: 2px solid #dee2e6;">
+    <strong style="font-size:0.85rem;">Span Mode:</strong>
+    <button type="button" class="btn btn-sm span-mode-btn active" data-mode="CLAIM"
+            style="border: 2px solid #ef4444; background: #fee2e2; color: #ef4444; font-weight: bold;">
+        CLAIM <kbd class="ms-1" style="font-size:0.7rem;">C</kbd>
+    </button>
+    <button type="button" class="btn btn-sm span-mode-btn" data-mode="HEDGED"
+            style="border: 2px solid #eab308; background: transparent; color: #eab308;">
+        HEDGE <kbd class="ms-1" style="font-size:0.7rem;">H</kbd>
+    </button>
+    <span class="text-muted" style="font-size:0.78rem;">Select mode, then highlight text in any comment</span>
+</div>
+
 <!-- Post header -->
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between">
@@ -38,7 +52,7 @@
     <!-- RIGHT: Comments with annotation -->
     <div class="col-lg-8">
         <div class="alert alert-info py-2 mb-3" style="font-size:0.88rem;">
-            <strong>Instructions:</strong> For each comment, assign the appropriate <strong>L1 codes</strong> using the toggle buttons. If a comment contains a <strong>claim</strong>, highlight the specific claim text &mdash; this will auto-add the CLAIM tag.
+            <strong>Instructions:</strong> For each comment, assign the appropriate <strong>L1 codes</strong> using the toggle buttons. To annotate spans, select a mode (<strong>C</strong> = Claim, <strong>H</strong> = Hedge) then highlight text. You can also press and hold the <kbd>C</kbd> or <kbd>H</kbd> key while selecting text.
             <br><br>
             <strong>Code definitions:</strong>
             <ul class="mb-1 mt-1">
@@ -69,11 +83,16 @@
                     </button>
                     {% endif %}
                     {% endfor %}
-                    <!-- CLAIM badge (auto, not clickable) -->
-                    <span class="badge claim-badge d-none ms-1 mb-1"
-                          data-index="{{ loop.index0 }}"
+                    <!-- Span type auto-badges -->
+                    <span class="badge span-badge d-none ms-1 mb-1"
+                          data-index="{{ outer_idx }}" data-span-type="CLAIM"
                           style="background: {{ comment_codes.CLAIM.color }}; color: {{ comment_codes.CLAIM.border_color }}; border: 1px solid {{ comment_codes.CLAIM.border_color }}; font-size: 0.78rem; vertical-align: middle;">
                         CLAIM (auto)
+                    </span>
+                    <span class="badge span-badge d-none ms-1 mb-1"
+                          data-index="{{ outer_idx }}" data-span-type="HEDGED"
+                          style="background: {{ comment_codes.HEDGED.color }}; color: {{ comment_codes.HEDGED.border_color }}; border: 1px solid {{ comment_codes.HEDGED.border_color }}; font-size: 0.78rem; vertical-align: middle;">
+                        HEDGED (auto)
                     </span>
                     <span class="ms-2" style="border-left: 1px solid #ccc; padding-left: 8px;">
                         <button type="button"
@@ -114,13 +133,57 @@ const COMMENT_CODES = {{ comment_codes | tojson }};
 let codesByComment = {{ codes_by_comment | tojson }};
 let excludeReasons = {{ exclude_reasons | tojson }};
 
+// ── Span mode (CLAIM or HEDGED) ──
+let currentSpanMode = 'CLAIM';
+const SPAN_STYLES = {
+    CLAIM:  { bg: '#fee2e222', border: '#ef4444', color: '#ef4444', bgSolid: '#fee2e2', label: 'CLAIM' },
+    HEDGED: { bg: '#fef9c322', border: '#eab308', color: '#eab308', bgSolid: '#fef9c3', label: 'HEDGED' },
+};
+
 function escHtml(t) {
     const d = document.createElement('div');
     d.textContent = t;
     return d.innerHTML;
 }
 
-// ── Span highlights (for CLAIM marking) ──
+// Span mode buttons
+document.querySelectorAll('.span-mode-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        currentSpanMode = this.dataset.mode;
+        updateSpanModeButtons();
+    });
+});
+
+function updateSpanModeButtons() {
+    document.querySelectorAll('.span-mode-btn').forEach(btn => {
+        const mode = btn.dataset.mode;
+        const s = SPAN_STYLES[mode];
+        if (mode === currentSpanMode) {
+            btn.style.background = s.bgSolid;
+            btn.style.color = s.color;
+            btn.style.fontWeight = 'bold';
+            btn.classList.add('active');
+        } else {
+            btn.style.background = 'transparent';
+            btn.style.color = s.color;
+            btn.style.fontWeight = 'normal';
+            btn.classList.remove('active');
+        }
+    });
+}
+
+// Keyboard shortcuts: C for CLAIM, H for HEDGED
+let keyHeldMode = null;
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    if (e.key === 'c' || e.key === 'C') { keyHeldMode = 'CLAIM'; currentSpanMode = 'CLAIM'; updateSpanModeButtons(); }
+    if (e.key === 'h' || e.key === 'H') { keyHeldMode = 'HEDGED'; currentSpanMode = 'HEDGED'; updateSpanModeButtons(); }
+});
+document.addEventListener('keyup', function(e) {
+    if (e.key === 'c' || e.key === 'C' || e.key === 'h' || e.key === 'H') keyHeldMode = null;
+});
+
+// ── Span highlights (CLAIM + HEDGED) ──
 
 function renderHighlights() {
     document.querySelectorAll('.clinical-comment-text').forEach(el => {
@@ -128,7 +191,7 @@ function renderHighlights() {
         const rawText = el.textContent || el.innerText;
 
         const savedAnnots = existingAnnotations.filter(a => a.item_index === index);
-        let highlights = savedAnnots.map(a => ({ start: a.start, end: a.end, id: a.id }));
+        let highlights = savedAnnots.map(a => ({ start: a.start, end: a.end, id: a.id, span_type: a.span_type || 'CLAIM' }));
         highlights.sort((a, b) => a.start - b.start);
 
         const merged = [];
@@ -140,7 +203,8 @@ function renderHighlights() {
         let html = '', cursor = 0;
         for (const h of merged) {
             if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
-            html += `<mark class="hl-claim" data-start="${h.start}" data-end="${h.end}" data-annot-id="${h.id}" title="Highlighted claim span">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
+            const s = SPAN_STYLES[h.span_type] || SPAN_STYLES.CLAIM;
+            html += `<mark class="hl-span" data-start="${h.start}" data-end="${h.end}" data-annot-id="${h.id}" data-span-type="${h.span_type}" title="${s.label} span" style="background:${s.bg}; border-bottom:2px solid ${s.border}; cursor:pointer;">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
             cursor = h.end;
         }
         if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
@@ -152,10 +216,11 @@ function renderHighlights() {
     existingAnnotations.forEach(a => {
         const container = document.querySelector(`.annotations-list[data-index="${a.item_index}"]`);
         if (!container) return;
+        const s = SPAN_STYLES[a.span_type] || SPAN_STYLES.CLAIM;
         const div = document.createElement('div');
         div.className = 'annotation-tag';
         div.innerHTML = `
-            <span class="badge" style="background:#fee2e2; color:#ef4444; border:1px solid #ef4444;">CLAIM</span>
+            <span class="badge" style="background:${s.bgSolid}; color:${s.color}; border:1px solid ${s.color};">${s.label}</span>
             <em class="ms-1">"${escHtml(a.text.substring(0, 100))}${a.text.length > 100 ? '...' : ''}"</em>
             <button class="btn btn-sm btn-link text-danger p-0 ms-2 delete-annot" data-id="${a.id}">&times;</button>
         `;
@@ -190,7 +255,7 @@ function deleteSpan(id) {
         if (d.ok) {
             existingAnnotations = existingAnnotations.filter(a => a.id !== id);
             renderHighlights();
-            if (itemIdx !== null) syncClaimCode(itemIdx);
+            if (itemIdx !== null) syncSpanCodes(itemIdx);
             statusEl.innerHTML = '<small class="text-success">Span removed</small>';
         }
     });
@@ -224,6 +289,7 @@ document.querySelectorAll('.clinical-comment-text').forEach(el => {
         const snapped = snapToWordBounds(fullText, start, end);
         const itemIndex = parseInt(this.dataset.index);
 
+        const spanType = currentSpanMode;
         // Auto-save the span (no modal)
         fetch(`/api/annotation/${POST_ID}/save`, {
             method: 'POST',
@@ -233,6 +299,7 @@ document.querySelectorAll('.clinical-comment-text').forEach(el => {
                 start: snapped.start,
                 end: snapped.end,
                 text: snapped.text,
+                span_type: spanType,
             }),
         })
         .then(r => r.json())
@@ -247,10 +314,11 @@ document.querySelectorAll('.clinical-comment-text').forEach(el => {
                     start: snapped.start,
                     end: snapped.end,
                     text: snapped.text,
+                    span_type: spanType,
                 });
                 renderHighlights();
-                syncClaimCode(itemIndex);
-                statusEl.innerHTML = '<small class="text-success">Claim span saved</small>';
+                syncSpanCodes(itemIndex);
+                statusEl.innerHTML = `<small class="text-success">${spanType} span saved</small>`;
             }
         });
 
@@ -279,19 +347,26 @@ function isCommentExcluded(idx) {
     return getCodesForComment(idx).includes('EXCLUDE');
 }
 
-function syncClaimCode(idx) {
-    const codes = getCodesForComment(idx);
-    const hasClaim = codes.includes('CLAIM');
-    const hasSpans = hasSpansForComment(idx);
+function syncSpanCodes(idx) {
+    let codes = getCodesForComment(idx);
+    let changed = false;
 
-    if (hasSpans && !hasClaim) {
-        codes.push('CLAIM');
+    ['CLAIM', 'HEDGED'].forEach(spanType => {
+        const hasCode = codes.includes(spanType);
+        const hasSpans = existingAnnotations.some(a => a.item_index === idx && (a.span_type || 'CLAIM') === spanType);
+
+        if (hasSpans && !hasCode) {
+            codes.push(spanType);
+            changed = true;
+        } else if (!hasSpans && hasCode) {
+            codes = codes.filter(c => c !== spanType);
+            changed = true;
+        }
+    });
+
+    if (changed) {
         setCodesForComment(idx, codes);
         saveCommentCodes(idx, codes);
-    } else if (!hasSpans && hasClaim) {
-        const filtered = codes.filter(c => c !== 'CLAIM');
-        setCodesForComment(idx, filtered);
-        saveCommentCodes(idx, filtered);
     }
     renderCodeButtons();
 }
@@ -326,10 +401,11 @@ function renderCodeButtons() {
         }
     });
 
-    document.querySelectorAll('.claim-badge').forEach(badge => {
+    document.querySelectorAll('.span-badge').forEach(badge => {
         const idx = parseInt(badge.dataset.index);
+        const spanType = badge.dataset.spanType;
         const codes = getCodesForComment(idx);
-        if (codes.includes('CLAIM') && !isCommentExcluded(idx)) {
+        if (codes.includes(spanType) && !isCommentExcluded(idx)) {
             badge.classList.remove('d-none');
         } else {
             badge.classList.add('d-none');
@@ -450,19 +526,15 @@ document.querySelectorAll('.exclude-reason-input').forEach(input => {
     document.querySelectorAll('.comment-codes-bar').forEach(bar => {
         allIndices.add(parseInt(bar.dataset.index));
     });
-    allIndices.forEach(idx => syncClaimCode(idx));
+    allIndices.forEach(idx => syncSpanCodes(idx));
     renderCodeButtons();
 })();
 </script>
 
 <style>
-.hl-claim {
-    background: #fee2e222;
-    border-bottom: 2px solid #ef4444;
-    cursor: pointer;
-}
-.hl-claim:hover {
-    background: #fee2e266;
-}
+.hl-span { cursor: pointer; }
+.hl-span:hover { opacity: 0.7; }
+.span-mode-btn.active { box-shadow: 0 0 0 3px rgba(0,0,0,0.15); }
+kbd { background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 3px; padding: 1px 4px; }
 </style>
 {% endblock %}

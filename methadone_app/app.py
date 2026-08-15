@@ -21,7 +21,7 @@ COMMENT_CODES = {
         "label": "Hedged Claim",
         "description": "Uncertainty explicitly signaled. The claim is softened or qualified.",
         "color": "#fef9c3", "border_color": "#eab308",
-        "is_span_code": False,
+        "is_span_code": True,
     },
     "SUPPORT": {
         "label": "Emotional Support",
@@ -216,6 +216,7 @@ def review(post_id):
             "harm_verdict": a.harm_verdict or "",
             "factual_reasoning": a.factual_reasoning or "",
             "harm_reasoning": a.harm_reasoning or "",
+            "span_type": a.span_type or "CLAIM",
         })
 
     # Load comment-level codes
@@ -281,10 +282,11 @@ def save_annotation(post_id):
         harm_verdict=data.get("harm_verdict"),
         factual_reasoning=data.get("factual_reasoning", ""),
         harm_reasoning=data.get("harm_reasoning", ""),
+        span_type=data.get("span_type", "CLAIM"),
     )
     db.session.add(annot)
     db.session.commit()
-    return jsonify({"ok": True, "id": annot.id, "removed_ids": removed_ids})
+    return jsonify({"ok": True, "id": annot.id, "removed_ids": removed_ids, "span_type": annot.span_type})
 
 
 @app.route("/api/codes/<post_id>/save", methods=["POST"])
@@ -498,7 +500,7 @@ def admin_export_csv():
     writer = csv.writer(output)
     writer.writerow([
         "annotation_id", "expert", "post_id", "comment_index",
-        "highlighted_span", "start_offset", "end_offset", "created_at"
+        "span_type", "highlighted_span", "start_offset", "end_offset", "created_at"
     ])
 
     for a in TextAnnotation.query.order_by(TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
@@ -508,6 +510,7 @@ def admin_export_csv():
             expert_obj.username if expert_obj else "unknown",
             a.post_id,
             a.item_index,
+            a.span_type or "CLAIM",
             a.highlighted_text,
             a.start_offset,
             a.end_offset,
@@ -560,6 +563,7 @@ def admin_review(post_id):
             "harm_verdict": a.harm_verdict or "",
             "factual_reasoning": a.factual_reasoning or "",
             "harm_reasoning": a.harm_reasoning or "",
+            "span_type": a.span_type or "CLAIM",
         }
         all_annotations.append(annot)
         if annot["expert_name"] not in annotations_by_expert:
@@ -630,6 +634,7 @@ def migrate_schema():
                 ("harm_verdict", "VARCHAR(20)"),
                 ("factual_reasoning", "TEXT DEFAULT ''"),
                 ("harm_reasoning", "TEXT DEFAULT ''"),
+                ("span_type", "VARCHAR(20) DEFAULT 'CLAIM'"),
             ]:
                 if col not in cols:
                     db.session.execute(text(f"ALTER TABLE text_annotation ADD COLUMN {col} {coltype}"))

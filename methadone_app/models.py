@@ -56,4 +56,5 @@ class TextAnnotation(db.Model):
     harm_verdict = db.Column(db.String(20), nullable=True)
     factual_reasoning = db.Column(db.Text, default="")
     harm_reasoning = db.Column(db.Text, default="")
+    span_type = db.Column(db.String(20), default="CLAIM")
     created_at = db.Column(db.DateTime, server_default=db.func.now())

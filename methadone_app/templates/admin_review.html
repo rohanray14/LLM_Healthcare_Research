@@ -72,6 +72,11 @@ function getExpertColor(name) {
     return expertColors[name];
 }
 
+const SPAN_STYLES = {
+    CLAIM:  { bg: '#ef444422', border: '#ef4444', label: 'CLAIM' },
+    HEDGED: { bg: '#eab30822', border: '#eab308', label: 'HEDGED' },
+};
+
 function highlightText(rawText, spans) {
     spans.sort((a, b) => a.start - b.start);
     const merged = [];
@@ -82,7 +87,8 @@ function highlightText(rawText, spans) {
     let html = '', cursor = 0;
     for (const h of merged) {
         if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
-        html += `<mark style="background:#ef444422; border-bottom:2px solid #ef4444;">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
+        const s = SPAN_STYLES[h.span_type] || SPAN_STYLES.CLAIM;
+        html += `<mark style="background:${s.bg}; border-bottom:2px solid ${s.border};" title="${s.label}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
         cursor = h.end;
     }
     if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
