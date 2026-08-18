@@ -7,7 +7,7 @@ from load_data import load_all
 COMMENT_CODES = {
     "CLAIM": {
         "label": "Confident Claim",
-        "description": "Any assertion presented with confidence. Auto-added when you highlight a span.",
+        "description": "Any assertion presented with confidence, e.g. \"Suboxone only works when you take it in the morning\" — a claim. Auto-added when you highlight a span.",
         "color": "#fee2e2", "border_color": "#ef4444",
         "is_span_code": True,
     },
