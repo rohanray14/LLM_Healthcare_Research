@@ -180,8 +180,12 @@ def dashboard():
 
     posts_list.sort(key=lambda p: -p["num_comments"])
 
+    total_comments = sum(p["num_comments"] for p in posts_list)
+    total_coded = sum(p["coded_comments"] for p in posts_list)
+
     return render_template("dashboard.html", posts=posts_list, search=search,
-                           username=session.get("username"), is_admin=is_admin)
+                           username=session.get("username"), is_admin=is_admin,
+                           total_comments=total_comments, total_coded=total_coded)
 
 
 # ── Review Page ───────────────────────────────────────

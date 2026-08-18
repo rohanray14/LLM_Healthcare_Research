@@ -158,12 +158,17 @@ def dashboard():
         # Expert: most comments first
         posts_list.sort(key=lambda p: -p["num_comments"])
 
+    total_comments = sum(p["num_comments"] for p in posts_list)
+    total_annotated = sum(p["annotated_comments"] for p in posts_list)
+
     return render_template(
         "dashboard.html",
         posts=posts_list,
         search=search,
         username=session.get("username"),
         is_admin=is_admin,
+        total_comments=total_comments,
+        total_annotated=total_annotated,
     )
 
 
@@ -500,10 +505,14 @@ def admin():
                     total_comments += 1
                     total_words += len((item.get("advice") or "").split())
         annot_count = TextAnnotation.query.filter_by(expert_id=e.id).count()
+        annotated_comments = db.session.query(
+            db.func.count(db.func.distinct(TextAnnotation.item_index))
+        ).filter_by(expert_id=e.id).scalar() or 0
         expert_stats[e.id] = {
             "total_comments": total_comments,
             "total_words": total_words,
             "annotations": annot_count,
+            "annotated_comments": annotated_comments,
         }
 
     return render_template(

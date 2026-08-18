@@ -17,6 +17,34 @@
     </div>
 </div>
 
+<!-- Summary stats -->
+<div class="d-flex gap-3 mb-3">
+    <div class="card border-0 shadow-sm" style="min-width:140px;">
+        <div class="card-body py-2 px-3 text-center">
+            <div class="text-muted" style="font-size:0.75rem;">Total Comments</div>
+            <div class="fw-bold" style="font-size:1.3rem;">{{ total_comments }}</div>
+        </div>
+    </div>
+    <div class="card border-0 shadow-sm" style="min-width:140px;">
+        <div class="card-body py-2 px-3 text-center">
+            <div class="text-muted" style="font-size:0.75rem;">Completed</div>
+            <div class="fw-bold" style="font-size:1.3rem; color:#22c55e;">{{ total_coded }}</div>
+        </div>
+    </div>
+    <div class="card border-0 shadow-sm" style="min-width:140px;">
+        <div class="card-body py-2 px-3 text-center">
+            <div class="text-muted" style="font-size:0.75rem;">Remaining</div>
+            <div class="fw-bold" style="font-size:1.3rem; color:#ef4444;">{{ total_comments - total_coded }}</div>
+        </div>
+    </div>
+    <div class="card border-0 shadow-sm" style="min-width:140px;">
+        <div class="card-body py-2 px-3 text-center">
+            <div class="text-muted" style="font-size:0.75rem;">Progress</div>
+            <div class="fw-bold" style="font-size:1.3rem;">{{ '%.0f' | format(total_coded / total_comments * 100 if total_comments > 0 else 0) }}%</div>
+        </div>
+    </div>
+</div>
+
 <div class="table-responsive">
     <table class="table table-striped table-hover table-sm">
         <thead>

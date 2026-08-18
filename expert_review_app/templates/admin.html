@@ -46,8 +46,9 @@
             <span class="badge bg-info">{{ assignments.get(expert.id, [])|length }} posts</span>
             {% set stats = expert_stats.get(expert.id, {}) %}
             <span class="badge bg-secondary">{{ stats.get('total_comments', 0) }} comments</span>
-            <span class="badge bg-secondary">{{ '{:,}'.format(stats.get('total_words', 0)) }} words</span>
-            <span class="badge bg-success">{{ stats.get('annotations', 0) }} annotations</span>
+            <span class="badge bg-success">{{ stats.get('annotated_comments', 0) }}/{{ stats.get('total_comments', 0) }} annotated</span>
+            {% set pct = (stats.get('annotated_comments', 0) / stats.get('total_comments', 1) * 100) if stats.get('total_comments', 0) > 0 else 0 %}
+            <span class="badge bg-{{ 'success' if pct == 100 else 'warning text-dark' if pct > 0 else 'secondary' }}">{{ '%.0f' | format(pct) }}%</span>
             <button class="btn btn-sm btn-success save-assignments-btn" data-expert-id="{{ expert.id }}">Save</button>
             <button class="btn btn-sm btn-outline-danger delete-expert-btn" data-expert-id="{{ expert.id }}" data-expert-name="{{ expert.username }}">Delete</button>
             <span class="assign-status" data-expert-id="{{ expert.id }}"></span>
