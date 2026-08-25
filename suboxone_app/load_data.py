@@ -150,6 +150,7 @@ def load_all():
     post_ids = []
 
     for csv_file in sorted(BASE.glob("*.csv")):
+        split = csv_file.stem  # "dev" or "test"
         grouped = _load_csv(csv_file)
         for pid, info in grouped.items():
             if pid in posts:
@@ -197,6 +198,7 @@ def load_all():
                 "title": info["title"],
                 "body": info["body"],
                 "labels": info["labels"],
+                "split": split,
                 "link": f"https://www.reddit.com/r/suboxone/comments/{pid}/",
                 "advice": advice_items,
             }

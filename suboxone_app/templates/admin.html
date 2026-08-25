@@ -80,6 +80,8 @@
                 {% set meta = post_meta.get(pid, {}) %}
                 <label class="form-check-label small" for="chk-{{ expert.id }}-{{ loop.index }}">
                     <span class="text-muted">#{{ loop.index }}</span> {{ pid }}
+                    {% set split = post_meta.get(pid, {}).get('split', '') %}
+                    <span class="badge ms-1 {{ 'bg-primary' if split == 'dev' else 'bg-warning text-dark' if split == 'test' else 'bg-secondary' }}" style="font-size:0.65rem;">{{ split }}</span>
                     <span class="text-muted ms-1">({{ meta.get('num_comments', '?') }} comments)</span>
                     {% for o in other_owners %}<span class="badge bg-info text-dark ms-1">{{ o }}</span>{% endfor %}
                 </label>

@@ -424,7 +424,7 @@ def admin():
     for pid in POST_IDS:
         post = POSTS.get(pid)
         if post:
-            post_meta[pid] = {"num_comments": len(post["advice"])}
+            post_meta[pid] = {"num_comments": len(post["advice"]), "split": post.get("split", "")}
 
     expert_stats = {}
     for e in experts:

@@ -119,9 +119,9 @@
                     </span>
                     {% if outer_idx in pre_hedged %}
                     <span class="badge ms-1 mb-1 pre-hedged-badge" data-index="{{ outer_idx }}"
-                          style="background: {{ comment_codes.HEDGED.color }}; color: {{ comment_codes.HEDGED.border_color }}; border: 2px dashed {{ comment_codes.HEDGED.border_color }}; font-size: 0.78rem; vertical-align: middle; border-radius: 20px; padding: 3px 10px;"
-                          title="This comment was flagged as HEDGED in the dataset — please highlight the hedged text using Hedge span mode (H)">
-                        HEDGE (needs span)
+                          style="background: {{ comment_codes.HEDGED.color }}; color: {{ comment_codes.HEDGED.border_color }}; border: 2px dashed {{ comment_codes.HEDGED.border_color }}; font-size: 0.78rem; vertical-align: middle; border-radius: 20px; padding: 3px 10px; cursor: pointer;"
+                          title="Click to dismiss — or highlight hedged text using Hedge span mode (H)">
+                        HEDGE (needs span) &times;
                     </span>
                     {% endif %}
                     <span class="ms-2" style="border-left: 1px solid #ccc; padding-left: 8px;">
@@ -411,14 +411,8 @@ function syncSpanCodes(idx) {
             codes.push(spanType);
             changed = true;
         } else if (!hasSpans && hasCode) {
-            // Don't remove HEDGED if this comment was pre-annotated as HEDGED
-            // (it needs manual span annotation, so keep the code visible)
-            if (spanType === 'HEDGED' && preHedgedIndices.has(idx)) {
-                // Keep HEDGED code — annotator still needs to highlight spans
-            } else {
-                codes = codes.filter(c => c !== spanType);
-                changed = true;
-            }
+            codes = codes.filter(c => c !== spanType);
+            changed = true;
         }
     });
 
@@ -593,6 +587,14 @@ document.querySelectorAll('.exclude-reason-input').forEach(input => {
         if (codes.includes('EXCLUDE')) {
             saveCommentCodes(idx, codes);
         }
+    });
+});
+
+// Dismiss "HEDGE (needs span)" badge on click
+document.querySelectorAll('.pre-hedged-badge').forEach(badge => {
+    badge.addEventListener('click', function() {
+        this.style.display = 'none';
+        preHedgedIndices.delete(parseInt(this.dataset.index));
     });
 });
 
