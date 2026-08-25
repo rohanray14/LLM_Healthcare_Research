@@ -174,9 +174,11 @@ def load_all():
                 spans = []
                 if c["span_if_claim"]:
                     span_parts = [s.strip() for s in c["span_if_claim"].split("\n") if s.strip()]
+                    seen_offsets = set()
                     for span_text in span_parts:
                         start, end = _find_span_offsets(c["comment_body"], span_text)
-                        if start is not None:
+                        if start is not None and (start, end) not in seen_offsets:
+                            seen_offsets.add((start, end))
                             spans.append({
                                 "start": start,
                                 "end": end,
