@@ -42,7 +42,7 @@
     </div>
     <div class="col-lg-8" id="commentsContainer">
         {% for item in post.advice %}
-        <div class="comment-source d-none" data-index="{{ loop.index0 }}" data-num="{{ loop.index }}">{{ item.advice }}</div>
+        <div class="comment-source d-none" data-index="{{ loop.index0 }}" data-num="{{ loop.index }}" data-comment-id="{{ item.comment_id }}">{{ item.advice }}</div>
         {% endfor %}
     </div>
 </div>
@@ -60,8 +60,10 @@ const colors = ['#0d6efd', '#198754', '#dc3545', '#fd7e14', '#6610f2', '#20c997'
 let ci = 0;
 
 const rawTexts = {};
+const commentIds = {};
 document.querySelectorAll('.comment-source').forEach(el => {
     rawTexts[parseInt(el.dataset.index)] = el.textContent;
+    commentIds[parseInt(el.dataset.index)] = el.dataset.commentId || '';
 });
 
 function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
@@ -114,7 +116,7 @@ function renderAll(filter) {
             const card = document.createElement('div');
             card.className = 'card mb-3 comment-card-rendered';
             card.innerHTML = `
-                <div class="card-header"><h6 class="mb-0">Comment ${commentNum}</h6></div>
+                <div class="card-header"><h6 class="mb-0">Comment ${commentNum}${commentIds[idx] ? ` <code class="ms-1" style="font-size:0.75rem;">${escHtml(commentIds[idx])}</code>` : ''}</h6></div>
                 <div class="card-body">
                     <div style="font-size:0.85rem; white-space:pre-wrap;">${escHtml(rawText)}</div>
                 </div>
@@ -149,14 +151,45 @@ function renderAll(filter) {
 
             const textHtml = expertAnnots.length > 0 ? highlightText(rawText, expertAnnots) : escHtml(rawText);
 
+            // Build annotation detail rows
+            let annotDetailsHtml = '';
+            if (expertAnnots.length > 0) {
+                annotDetailsHtml = '<div class="mt-2 pt-2" style="border-top: 1px solid #e9ecef;">';
+                expertAnnots.sort((a, b) => a.start - b.start).forEach(a => {
+                    const s = SPAN_STYLES[a.span_type] || SPAN_STYLES.CLAIM;
+                    const truncText = a.text.length > 80 ? a.text.substring(0, 80) + '...' : a.text;
+                    annotDetailsHtml += `<div class="d-flex align-items-start gap-2 mb-1" style="font-size:0.8rem;">`;
+                    annotDetailsHtml += `<span class="badge" style="background:${s.bg}; color:${s.border}; border:1px solid ${s.border}; white-space:nowrap; flex-shrink:0;">${s.label}</span>`;
+                    annotDetailsHtml += `<em style="color:#555;">"${escHtml(truncText)}"</em>`;
+                    if (a.verdict) {
+                        const vColor = a.verdict === 'correct' ? '#198754' : a.verdict === 'incorrect' ? '#dc3545' : '#6c757d';
+                        annotDetailsHtml += `<span class="badge" style="background:${vColor}; white-space:nowrap; flex-shrink:0;">FA: ${a.verdict}</span>`;
+                    }
+                    if (a.harm_verdict) {
+                        const hColor = a.harm_verdict === 'harmful' ? '#dc3545' : a.harm_verdict === 'safe' ? '#198754' : '#ffc107';
+                        const hText = a.harm_verdict === 'harmful' ? '#fff' : a.harm_verdict === 'safe' ? '#fff' : '#333';
+                        annotDetailsHtml += `<span class="badge" style="background:${hColor}; color:${hText}; white-space:nowrap; flex-shrink:0;">PH: ${a.harm_verdict}</span>`;
+                    }
+                    annotDetailsHtml += `</div>`;
+                    if (a.harm_reasoning) {
+                        annotDetailsHtml += `<div class="ms-4 mb-2" style="font-size:0.78rem;"><span class="badge bg-warning text-dark">Harm:</span> <span style="color:#666;">${escHtml(a.harm_reasoning)}</span></div>`;
+                    }
+                    if (a.factual_reasoning) {
+                        annotDetailsHtml += `<div class="ms-4 mb-2" style="font-size:0.78rem;"><span class="badge bg-info text-dark">Reasoning:</span> <span style="color:#666;">${escHtml(a.factual_reasoning)}</span></div>`;
+                    }
+                });
+                annotDetailsHtml += '</div>';
+            }
+
             card.innerHTML = `
                 <div class="card-header py-1 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0" style="font-size:0.85rem;">Comment ${commentNum}</h6>
+                    <h6 class="mb-0" style="font-size:0.85rem;">Comment ${commentNum}${commentIds[idx] ? ` <code class="ms-1" style="font-size:0.75rem;">${escHtml(commentIds[idx])}</code>` : ''}</h6>
                     <span class="badge" style="background:${color};">${expertName}</span>
                 </div>
                 <div class="card-body py-2">
                     ${codesHtml ? `<div class="mb-2">${codesHtml}</div>` : ''}
                     <div style="font-size:0.85rem; white-space:pre-wrap;">${textHtml}</div>
+                    ${annotDetailsHtml}
                 </div>
             `;
             container.appendChild(card);

@@ -131,7 +131,22 @@ function renderAll(filter) {
                 if (entry.exclude_reason) codesHtml += ` <em class="ms-1 text-muted" style="font-size:0.8rem;">(${escHtml(entry.exclude_reason)})</em>`;
             }
             const textHtml = expertAnnots.length > 0 ? highlightText(rawText, expertAnnots) : escHtml(rawText);
-            card.innerHTML = `<div class="card-header py-1 d-flex justify-content-between align-items-center"><h6 class="mb-0" style="font-size:0.85rem;">Comment ${commentNum}</h6><span class="badge" style="background:${color};">${expertName}</span></div><div class="card-body py-2">${codesHtml ? `<div class="mb-2">${codesHtml}</div>` : ''}<div style="font-size:0.85rem; white-space:pre-wrap;">${textHtml}</div></div>`;
+
+            let annotDetailsHtml = '';
+            if (expertAnnots.length > 0) {
+                annotDetailsHtml = '<div class="mt-2 pt-2" style="border-top: 1px solid #e9ecef;">';
+                expertAnnots.sort((a, b) => a.start - b.start).forEach(a => {
+                    const s = SPAN_STYLES[a.span_type] || Object.values(SPAN_STYLES)[0] || {bg:'#eee',border:'#999'};
+                    const truncText = a.text.length > 80 ? a.text.substring(0, 80) + '...' : a.text;
+                    annotDetailsHtml += `<div class="d-flex align-items-start gap-2 mb-1" style="font-size:0.8rem;">`;
+                    annotDetailsHtml += `<span class="badge" style="background:${s.bg}; color:${s.border}; border:1px solid ${s.border}; white-space:nowrap; flex-shrink:0;">${a.span_type}</span>`;
+                    annotDetailsHtml += `<em style="color:#555;">"${escHtml(truncText)}"</em>`;
+                    annotDetailsHtml += `</div>`;
+                });
+                annotDetailsHtml += '</div>';
+            }
+
+            card.innerHTML = `<div class="card-header py-1 d-flex justify-content-between align-items-center"><h6 class="mb-0" style="font-size:0.85rem;">Comment ${commentNum}</h6><span class="badge" style="background:${color};">${expertName}</span></div><div class="card-body py-2">${codesHtml ? `<div class="mb-2">${codesHtml}</div>` : ''}<div style="font-size:0.85rem; white-space:pre-wrap;">${textHtml}</div>${annotDetailsHtml}</div>`;
             container.appendChild(card);
         });
     }
