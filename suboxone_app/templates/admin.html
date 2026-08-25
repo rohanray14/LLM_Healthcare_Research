@@ -7,6 +7,7 @@
     <div class="d-flex gap-2">
         <a href="{{ url_for('admin_db') }}" class="btn btn-sm btn-outline-dark">View Database</a>
         <a href="{{ url_for('admin_export_csv') }}" class="btn btn-sm btn-outline-success">Export CSV</a>
+        <button class="btn btn-sm btn-outline-warning" id="resetPreseedBtn">Reset Pre-seed Log</button>
     </div>
 </div>
 
@@ -97,6 +98,16 @@
 
 {% block scripts %}
 <script>
+document.getElementById('resetPreseedBtn').addEventListener('click', function() {
+    if (!confirm('Reset pre-seed log? All posts will be re-seeded with fresh annotations on next visit.')) return;
+    fetch('/admin/reset_preseed', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}
+    }).then(r => r.json()).then(d => {
+        if (d.ok) { alert('Cleared ' + d.deleted + ' pre-seed entries. Posts will re-seed on next visit.'); location.reload(); }
+        else alert(d.error);
+    });
+});
+
 document.getElementById('addExpertBtn').addEventListener('click', function() {
     const username = document.getElementById('newExpertName').value.trim();
     const password = document.getElementById('newExpertPass').value.trim();

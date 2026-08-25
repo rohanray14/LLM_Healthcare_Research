@@ -558,6 +558,17 @@ def admin_db():
     )
 
 
+# ── Admin: Reset pre-seed log ─────────────────────────
+@app.route("/admin/reset_preseed", methods=["POST"])
+def admin_reset_preseed():
+    expert = get_expert()
+    if not expert or expert.username != "admin":
+        return jsonify({"error": "unauthorized"}), 403
+    deleted = PreSeedLog.query.delete()
+    db.session.commit()
+    return jsonify({"ok": True, "deleted": deleted})
+
+
 # ── Admin: Export CSV ─────────────────────────────────
 
 @app.route("/admin/export_csv")
