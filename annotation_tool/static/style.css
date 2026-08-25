@@ -1,0 +1,82 @@
+html { scroll-behavior: smooth; }
+body { background: #f7f8fa; font-size: 0.92rem; }
+
+/* Custom scrollbar */
+.source-panel::-webkit-scrollbar { width: 6px; }
+.source-panel::-webkit-scrollbar-track { background: transparent; }
+.source-panel::-webkit-scrollbar-thumb { background: #c1c7cd; border-radius: 3px; }
+.source-panel::-webkit-scrollbar-thumb:hover { background: #a0a8b0; }
+
+/* Source panel (left side) */
+.sticky-panel { position: sticky; top: 1rem; }
+.source-panel { max-height: calc(100vh - 160px); overflow-y: auto; }
+
+.comment-card {
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    background: #fff;
+    transition: background 0.3s;
+}
+.comment-card.highlight {
+    background: #fff3cd;
+    border-color: #ffc107;
+    box-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
+}
+.comment-label {
+    font-weight: 700;
+    color: #6c757d;
+    font-size: 0.8rem;
+    margin-bottom: 2px;
+}
+.comment-text { white-space: pre-wrap; word-break: break-word; }
+
+/* Annotatable text */
+.annotatable-text {
+    font-size: 0.88rem;
+    line-height: 1.6;
+    padding: 8px;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    cursor: text;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.clinical-comment-text {
+    font-size: 0.88rem;
+    font-weight: 300;
+    line-height: 1.7;
+    padding: 10px;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    cursor: text;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Annotation tags below text */
+.annotation-tag {
+    font-size: 0.82rem;
+    padding: 4px 8px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.annotation-tag em { color: #555; }
+
+/* Section cards */
+.section-card { border-left: 3px solid #0d6efd; }
+
+/* Clinical comment card */
+.comment-annotation-card { border-left: 3px solid #ffc107; }
+.comment-annotation-card .card-header {
+    background: #f0f4f8;
+    border-bottom: 1px solid #e2e8f0;
+}

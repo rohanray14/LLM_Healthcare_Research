@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Projects{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center mt-4">
+    <div class="col-lg-8">
+        <h4 class="mb-4">Annotation Projects</h4>
+
+        {% if projects %}
+        <div class="row g-3 mb-4">
+            {% for p in projects %}
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ p.name }}</h5>
+                        <div class="d-flex gap-2 mb-2">
+                            <span class="badge bg-info">{{ project_stats[p.id].posts }} posts</span>
+                            <span class="badge bg-secondary">{{ project_stats[p.id].experts }} annotators</span>
+                        </div>
+                        <small class="text-muted">Created {{ p.created_at.strftime('%Y-%m-%d') if p.created_at else '' }}</small>
+                    </div>
+                    <div class="card-footer d-flex gap-2">
+                        <a href="{{ url_for('login', slug=p.slug) }}" class="btn btn-sm btn-primary">Open</a>
+                        <form method="POST" action="{{ url_for('delete_project', project_id=p.id) }}" class="d-inline"
+                              onsubmit="return confirm('Delete project {{ p.name }} and ALL its data?') && prompt('Enter admin password:') === document.querySelector('#delPw{{ p.id }}').value;">
+                            <input type="hidden" name="admin_password" id="delPw{{ p.id }}" value="">
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    onclick="const pw = prompt('Enter admin password to delete:'); if(pw){this.previousElementSibling.value=pw; this.closest('form').submit();}">
+                                Delete
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">No projects yet. Create one below.</div>
+        {% endif %}
+
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Create New Project</h5></div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('create_project') }}" enctype="multipart/form-data">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Project Name</label>
+                            <input type="text" name="name" class="form-control" placeholder="e.g. Suboxone PEER Study" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Global Admin Password</label>
+                            <input type="password" name="admin_password" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Project Admin Password</label>
+                            <input type="text" name="project_admin_password" class="form-control" value="admin123" placeholder="admin123">
+                            <small class="text-muted">Password for the project's admin account</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Link Template <small class="text-muted">(optional)</small></label>
+                            <input type="text" name="link_template" class="form-control" placeholder="https://reddit.com/r/suboxone/comments/{post_id}/">
+                            <small class="text-muted">Use {post_id} as placeholder</small>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Data CSV</label>
+                            <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+                            <small class="text-muted">
+                                Required columns: <code>postId</code>, <code>comment</code>.
+                                Optional: <code>title</code>, <code>body</code>, <code>labels</code>, <code>comment_id</code>, <code>l1_coding</code>, <code>split</code>.
+                                Span columns: <code>span_if_claim</code>, <code>span_if_hedged</code>, etc.
+                            </small>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">Create Project</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

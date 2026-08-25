@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Annotation Tool{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-dark px-3" style="background: #1a5276;">
+        {% if project is defined and project %}
+        <a class="navbar-brand" href="{{ url_for('dashboard', slug=project.slug) }}">{{ project.name }}</a>
+        {% else %}
+        <a class="navbar-brand" href="{{ url_for('index') }}">Annotation Tool</a>
+        {% endif %}
+        {% if username is defined and username %}
+        <div class="d-flex align-items-center gap-3">
+            <span class="text-light">{{ username }}</span>
+            {% if project is defined and project %}
+            {% if username == 'admin' %}
+            <a href="{{ url_for('admin', slug=project.slug) }}" class="btn btn-sm btn-outline-warning">Admin</a>
+            {% endif %}
+            <a href="{{ url_for('logout', slug=project.slug) }}" class="btn btn-sm btn-outline-light">Logout</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </nav>
+    <div class="container-fluid px-4 py-3">
+        {% block content %}{% endblock %}
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

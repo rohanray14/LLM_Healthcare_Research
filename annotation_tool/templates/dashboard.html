@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - {{ project.name }}{% endblock %}
+{% block content %}
+
+<div class="row mb-3">
+    <div class="col-12">
+        <h5>Posts to Annotate</h5>
+        <form method="GET" class="row g-2 align-items-end mb-3">
+            <div class="col-auto">
+                <input type="text" name="search" class="form-control form-control-sm" value="{{ search }}" placeholder="Search title or ID...">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                <a href="{{ url_for('dashboard', slug=project.slug) }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="d-flex gap-3 mb-3">
+    <div class="card border-0 shadow-sm" style="min-width:140px;">
+        <div class="card-body py-2 px-3 text-center">
+            <div class="text-muted" style="font-size:0.75rem;">Total Comments</div>
+            <div class="fw-bold" style="font-size:1.3rem;">{{ total_comments }}</div>
+        </div>
+    </div>
+    <div class="card border-0 shadow-sm" style="min-width:140px;">
+        <div class="card-body py-2 px-3 text-center">
+            <div class="text-muted" style="font-size:0.75rem;">Completed</div>
+            <div class="fw-bold" style="font-size:1.3rem; color:#22c55e;">{{ total_coded }}</div>
+        </div>
+    </div>
+    <div class="card border-0 shadow-sm" style="min-width:140px;">
+        <div class="card-body py-2 px-3 text-center">
+            <div class="text-muted" style="font-size:0.75rem;">Remaining</div>
+            <div class="fw-bold" style="font-size:1.3rem; color:#ef4444;">{{ total_comments - total_coded }}</div>
+        </div>
+    </div>
+    <div class="card border-0 shadow-sm" style="min-width:140px;">
+        <div class="card-body py-2 px-3 text-center">
+            <div class="text-muted" style="font-size:0.75rem;">Progress</div>
+            <div class="fw-bold" style="font-size:1.3rem;">{{ '%.0f' | format(total_coded / total_comments * 100 if total_comments > 0 else 0) }}%</div>
+        </div>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover table-sm">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Post ID</th>
+                <th>Title</th>
+                <th>Topic</th>
+                <th>Comments</th>
+                <th>Coded</th>
+                {% if is_admin %}<th>Annotators</th>{% endif %}
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for post in posts %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td><code>{{ post.post_id }}</code></td>
+                <td>{{ post.title[:70] }}{% if post.title|length > 70 %}...{% endif %}</td>
+                <td><span class="badge bg-secondary" style="font-size:0.7rem;">{{ post.labels }}</span></td>
+                <td>{{ post.num_comments }}</td>
+                <td>
+                    {% if post.coded_comments > 0 %}
+                    <span class="badge bg-success">{{ post.coded_comments }}/{{ post.num_comments }}</span>
+                    {% else %}
+                    <span class="text-muted">0/{{ post.num_comments }}</span>
+                    {% endif %}
+                </td>
+                {% if is_admin %}
+                <td>
+                    {% if post.assigned_names %}
+                    {% for name in post.assigned_names %}
+                    <span class="badge bg-info text-dark">{{ name }}</span>
+                    {% endfor %}
+                    {% else %}--{% endif %}
+                </td>
+                {% endif %}
+                <td>
+                    <a href="{{ url_for('review', slug=project.slug, post_id=post.post_id) }}" class="btn btn-sm btn-outline-primary">Annotate</a>
+                    {% if is_admin %}
+                    <a href="{{ url_for('admin_review', slug=project.slug, post_id=post.post_id) }}" class="btn btn-sm btn-outline-warning">View All</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if not posts %}
+<div class="alert alert-info">No posts assigned yet. Contact your admin for assignments.</div>
+{% endif %}
+
+{% endblock %}

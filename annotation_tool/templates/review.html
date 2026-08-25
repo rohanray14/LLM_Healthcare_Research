@@ -1,0 +1,550 @@
+{% extends "base.html" %}
+{% block title %}Annotate: {{ post.title }}{% endblock %}
+{% block content %}
+
+<!-- Nav -->
+<div class="d-flex justify-content-between mb-3">
+    {% if prev_id %}
+    <a href="{{ url_for('review', slug=project.slug, post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>
+    {% else %}<span></span>{% endif %}
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('dashboard', slug=project.slug) }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
+        <span id="saveStatus"><small class="text-muted">Ready</small></span>
+    </div>
+    {% if next_id %}
+    <a href="{{ url_for('review', slug=project.slug, post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
+    {% else %}<span></span>{% endif %}
+</div>
+
+<!-- Span mode selector (sticky) -->
+<div class="alert alert-light py-2 mb-3 d-flex align-items-center gap-3 span-mode-bar" style="border: 2px solid #dee2e6;">
+    <strong style="font-size:0.85rem;">Span Mode:</strong>
+    {% for st in span_types %}
+    {% set info = comment_codes.get(st, {}) %}
+    <button type="button" class="btn btn-sm span-mode-btn {% if loop.first %}active{% endif %}" data-mode="{{ st }}"
+            style="border: 2px solid {{ info.get('border_color', '#999') }}; background: {% if loop.first %}{{ info.get('color', '#eee') }}{% else %}transparent{% endif %}; color: {{ info.get('border_color', '#999') }}; {% if loop.first %}font-weight: bold;{% endif %}">
+        {{ st }} <kbd class="ms-1" style="font-size:0.7rem;">{{ st[0] }}</kbd>
+    </button>
+    {% endfor %}
+    <span class="text-muted" style="font-size:0.78rem;">Select mode, then highlight text</span>
+
+    <!-- L1 code filter -->
+    <span class="ms-auto d-flex align-items-center gap-2">
+        <strong style="font-size:0.78rem;">Filter:</strong>
+        <select id="l1Filter" class="form-select form-select-sm" style="width:auto; font-size:0.78rem;">
+            <option value="all">All comments</option>
+            {% for code, info in comment_codes.items() %}
+            <option value="{{ code }}">Has {{ code }}</option>
+            {% endfor %}
+            <option value="uncoded">Uncoded</option>
+        </select>
+    </span>
+</div>
+<div class="span-mode-indicator" id="spanModeIndicator"></div>
+
+<!-- Post header -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between">
+        <h6 class="mb-0">
+            <code class="me-2">{{ post.post_id }}</code>{{ post.title }}
+            {% if post.labels %}
+            <span class="badge bg-secondary ms-2" style="font-size:0.7rem;">{{ post.labels }}</span>
+            {% endif %}
+        </h6>
+        {% if post.link %}
+        <a href="{{ post.link }}" target="_blank" class="btn btn-sm btn-outline-danger">Source</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <!-- LEFT: Original post body -->
+    <div class="col-lg-4">
+        <div class="card sticky-panel mb-3">
+            <div class="card-header"><h6 class="mb-0">Original Post</h6></div>
+            <div class="card-body source-panel">
+                <div class="post-body-text border rounded p-2 bg-light" style="font-size:0.85rem; white-space:pre-wrap; word-break:break-word;">{{ comment_data.get('body', '(No body)') }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Comments with annotation -->
+    <div class="col-lg-8">
+        <div class="alert alert-info py-2 mb-3" style="font-size:0.88rem;">
+            <strong>Instructions:</strong> For each comment, assign the appropriate <strong>codes</strong> using the toggle buttons. To annotate spans, select a mode then highlight text.
+            <br><small class="text-muted">Pre-existing codes and spans from the dataset are pre-loaded. Edit or delete as needed.</small>
+            <br><br>
+            <strong>Code definitions:</strong>
+            <ul class="mb-1 mt-1">
+                {% for code, info in comment_codes.items() %}
+                <li><strong>{{ code }}</strong> &mdash; {{ info.description }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        {% for item in post.advice %}
+        <div class="card mb-3 section-card comment-annotation-card" data-index="{{ loop.index0 }}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><span class="progress-dot" data-index="{{ loop.index0 }}"></span>Comment {{ loop.index }}</h6>
+            </div>
+            <div class="card-body">
+                <!-- Comment-level codes -->
+                <div class="comment-codes-bar mb-2" data-index="{{ loop.index0 }}">
+                    {% set outer_idx = loop.index0 %}
+                    {% for code, info in comment_codes.items() %}
+                    {% if not info.get('is_span_code') and not info.get('needs_reason') %}
+                    <button type="button"
+                            class="btn btn-sm code-toggle-btn me-1 mb-1"
+                            data-code="{{ code }}"
+                            data-index="{{ outer_idx }}"
+                            style="border: 2px solid {{ info.border_color }}; background: transparent; color: {{ info.border_color }}; font-size: 0.78rem;"
+                            title="{{ info.description }}">
+                        {{ info.label }}
+                    </button>
+                    {% endif %}
+                    {% endfor %}
+                    <!-- Span type auto-badges -->
+                    {% for st in span_types %}
+                    {% set info = comment_codes.get(st, {}) %}
+                    <span class="badge span-badge d-none ms-1 mb-1"
+                          data-index="{{ outer_idx }}" data-span-type="{{ st }}"
+                          style="background: {{ info.get('color', '#eee') }}; color: {{ info.get('border_color', '#999') }}; border: 1px solid {{ info.get('border_color', '#999') }}; font-size: 0.78rem; vertical-align: middle;">
+                        {{ st }} (auto)
+                    </span>
+                    {% endfor %}
+                    {% if outer_idx in pre_hedged %}
+                    {% set hedge_info = comment_codes.get(span_types[-1], {}) if span_types|length > 1 else {} %}
+                    <span class="badge ms-1 mb-1 pre-hedged-badge" data-index="{{ outer_idx }}"
+                          style="background: {{ hedge_info.get('color', '#fef9c3') }}; color: {{ hedge_info.get('border_color', '#eab308') }}; border: 2px dashed {{ hedge_info.get('border_color', '#eab308') }}; font-size: 0.78rem; vertical-align: middle; border-radius: 20px; padding: 3px 10px; cursor: pointer;"
+                          title="Click to dismiss">
+                        {{ span_types[-1] if span_types|length > 1 else 'SPAN' }} (needs span) &times;
+                    </span>
+                    {% endif %}
+                    <span class="ms-2" style="border-left: 1px solid #ccc; padding-left: 8px;">
+                        <button type="button"
+                                class="btn btn-sm exclude-toggle-btn mb-1"
+                                data-index="{{ outer_idx }}"
+                                style="border: 2px solid #64748b; background: transparent; color: #64748b; font-size: 0.78rem;"
+                                title="Exclude this comment">
+                            Exclude
+                        </button>
+                    </span>
+                </div>
+                <!-- Exclude reason -->
+                <div class="exclude-reason-box d-none mb-2" data-index="{{ loop.index0 }}">
+                    <textarea class="form-control form-control-sm exclude-reason-input"
+                              data-index="{{ loop.index0 }}"
+                              rows="2"
+                              placeholder="Why is this comment irrelevant?"
+                              style="font-size: 0.82rem;"></textarea>
+                </div>
+                <div class="annotatable-text clinical-comment-text"
+                     data-index="{{ loop.index0 }}"
+                     style="cursor: text;">{{ item.advice }}</div>
+                <div class="annotations-list mt-2" data-index="{{ loop.index0 }}"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SLUG = "{{ project.slug }}";
+const POST_ID = "{{ post.post_id }}";
+const statusEl = document.getElementById('saveStatus');
+let existingAnnotations = {{ existing_annotations | tojson }};
+const COMMENT_CODES = {{ comment_codes | tojson }};
+const SPAN_TYPES = {{ span_types | tojson }};
+let codesByComment = {{ codes_by_comment | tojson }};
+let excludeReasons = {{ exclude_reasons | tojson }};
+const preHedgedIndices = new Set({{ pre_hedged | tojson }});
+
+// Build SPAN_STYLES from config
+const SPAN_STYLES = {};
+SPAN_TYPES.forEach(st => {
+    const info = COMMENT_CODES[st] || {};
+    SPAN_STYLES[st] = {
+        bg: info.color ? info.color + '22' : '#eee22',
+        border: info.border_color || '#999',
+        color: info.border_color || '#999',
+        bgSolid: info.color || '#eee',
+        label: st,
+    };
+});
+
+let currentSpanMode = SPAN_TYPES[0] || 'CLAIM';
+
+function escHtml(t) {
+    const d = document.createElement('div');
+    d.textContent = t;
+    return d.innerHTML;
+}
+
+// Span mode buttons
+document.querySelectorAll('.span-mode-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        currentSpanMode = this.dataset.mode;
+        updateSpanModeButtons();
+    });
+});
+
+function updateSpanModeButtons() {
+    document.querySelectorAll('.span-mode-btn').forEach(btn => {
+        const mode = btn.dataset.mode;
+        const s = SPAN_STYLES[mode];
+        if (!s) return;
+        if (mode === currentSpanMode) {
+            btn.style.background = s.bgSolid;
+            btn.style.color = s.color;
+            btn.style.fontWeight = 'bold';
+            btn.classList.add('active');
+        } else {
+            btn.style.background = 'transparent';
+            btn.style.color = s.color;
+            btn.style.fontWeight = 'normal';
+            btn.classList.remove('active');
+        }
+    });
+    const indicator = document.getElementById('spanModeIndicator');
+    const s = SPAN_STYLES[currentSpanMode];
+    if (s) indicator.style.background = s.border;
+}
+
+// Keyboard shortcuts: first letter of each span type
+const keyMap = {};
+SPAN_TYPES.forEach(st => { keyMap[st[0].toLowerCase()] = st; });
+let keyHeldMode = null;
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+    const mode = keyMap[e.key.toLowerCase()];
+    if (mode) { keyHeldMode = mode; currentSpanMode = mode; updateSpanModeButtons(); }
+});
+document.addEventListener('keyup', function(e) {
+    if (keyMap[e.key.toLowerCase()]) keyHeldMode = null;
+});
+
+// L1 Code Filter
+document.getElementById('l1Filter').addEventListener('change', function() {
+    const filter = this.value;
+    document.querySelectorAll('.comment-annotation-card').forEach(card => {
+        const idx = parseInt(card.dataset.index);
+        if (filter === 'all') { card.style.display = ''; return; }
+        const codes = getCodesForComment(idx);
+        if (filter === 'uncoded') {
+            const hasSpans = existingAnnotations.some(a => a.item_index === idx);
+            card.style.display = (codes.length === 0 && !hasSpans) ? '' : 'none';
+        } else {
+            card.style.display = codes.includes(filter) ? '' : 'none';
+        }
+    });
+});
+
+// Span highlights
+function renderHighlights() {
+    document.querySelectorAll('.clinical-comment-text').forEach(el => {
+        const index = parseInt(el.dataset.index);
+        const rawText = el.textContent || el.innerText;
+        const savedAnnots = existingAnnotations.filter(a => a.item_index === index);
+        let highlights = savedAnnots.map(a => ({ start: a.start, end: a.end, id: a.id, span_type: a.span_type || SPAN_TYPES[0] }));
+        highlights.sort((a, b) => a.start - b.start);
+
+        const merged = [];
+        for (const h of highlights) {
+            if (merged.length && merged[merged.length - 1].end > h.start) continue;
+            merged.push(h);
+        }
+
+        let html = '', cursor = 0;
+        for (const h of merged) {
+            if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
+            const s = SPAN_STYLES[h.span_type] || SPAN_STYLES[SPAN_TYPES[0]] || {bg:'#eee',border:'#999'};
+            html += `<mark class="hl-span" data-start="${h.start}" data-end="${h.end}" data-annot-id="${h.id}" data-span-type="${h.span_type}" title="${h.span_type} span" style="background:${s.bg}; border-bottom:2px solid ${s.border}; cursor:pointer;">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
+            cursor = h.end;
+        }
+        if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
+        el.innerHTML = html;
+    });
+
+    document.querySelectorAll('.annotations-list').forEach(el => { el.innerHTML = ''; });
+    existingAnnotations.forEach(a => {
+        const container = document.querySelector(`.annotations-list[data-index="${a.item_index}"]`);
+        if (!container) return;
+        const s = SPAN_STYLES[a.span_type] || SPAN_STYLES[SPAN_TYPES[0]] || {bgSolid:'#eee',color:'#999'};
+        const div = document.createElement('div');
+        div.className = 'annotation-tag';
+        div.innerHTML = `
+            <span class="badge" style="background:${s.bgSolid}; color:${s.color}; border:1px solid ${s.color};">${a.span_type}</span>
+            <em class="ms-1">"${escHtml(a.text.substring(0, 100))}${a.text.length > 100 ? '...' : ''}"</em>
+            <button class="btn btn-sm btn-link text-danger p-0 ms-2 delete-annot" data-id="${a.id}">&times;</button>
+        `;
+        container.appendChild(div);
+    });
+
+    document.querySelectorAll('.clinical-comment-text mark').forEach(mark => {
+        mark.style.cursor = 'pointer';
+        mark.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const annotId = this.dataset.annotId;
+            if (!annotId || annotId === 'undefined') return;
+            deleteSpan(parseInt(annotId));
+        });
+    });
+
+    document.querySelectorAll('.delete-annot').forEach(btn => {
+        btn.addEventListener('click', function() { deleteSpan(parseInt(this.dataset.id)); });
+    });
+}
+
+function deleteSpan(id) {
+    const annot = existingAnnotations.find(a => a.id === id);
+    const itemIdx = annot ? annot.item_index : null;
+    fetch(`/p/${SLUG}/api/annotation/${id}/delete`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+        if (d.ok) {
+            existingAnnotations = existingAnnotations.filter(a => a.id !== id);
+            renderHighlights();
+            if (itemIdx !== null) syncSpanCodes(itemIdx);
+            statusEl.innerHTML = '<small class="text-success">Span removed</small>';
+        }
+    });
+}
+
+function snapToWordBounds(fullText, start, end) {
+    while (start > 0 && /[\w'\u2019-]/.test(fullText[start - 1])) start--;
+    while (end < fullText.length && /[\w'\u2019-]/.test(fullText[end])) end++;
+    while (start < end && /\s/.test(fullText[start])) start++;
+    while (end > start && /\s/.test(fullText[end - 1])) end--;
+    return { start, end, text: fullText.slice(start, end) };
+}
+
+document.querySelectorAll('.clinical-comment-text').forEach(el => {
+    el.addEventListener('mouseup', function(e) {
+        if (e.target.tagName === 'MARK') return;
+        const sel = window.getSelection();
+        const rawText = sel.toString().trim();
+        if (!rawText || rawText.length < 3) return;
+
+        const range = sel.getRangeAt(0);
+        const preRange = document.createRange();
+        preRange.selectNodeContents(this);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        let start = preRange.toString().length;
+        let end = start + rawText.length;
+
+        const fullText = this.textContent || this.innerText;
+        const snapped = snapToWordBounds(fullText, start, end);
+        const itemIndex = parseInt(this.dataset.index);
+        const spanType = currentSpanMode;
+
+        fetch(`/p/${SLUG}/api/annotation/${POST_ID}/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                item_index: itemIndex, start: snapped.start, end: snapped.end,
+                text: snapped.text, span_type: spanType,
+            }),
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.ok) {
+                if (d.removed_ids && d.removed_ids.length) {
+                    existingAnnotations = existingAnnotations.filter(a => !d.removed_ids.includes(a.id));
+                }
+                existingAnnotations.push({
+                    id: d.id, item_index: itemIndex, start: snapped.start,
+                    end: snapped.end, text: snapped.text, span_type: spanType,
+                });
+                renderHighlights();
+                syncSpanCodes(itemIndex);
+                statusEl.innerHTML = `<small class="text-success">${spanType} span saved</small>`;
+            }
+        });
+        sel.removeAllRanges();
+    });
+});
+
+renderHighlights();
+
+// Comment-level codes
+function getCodesForComment(idx) { return codesByComment[String(idx)] || codesByComment[idx] || []; }
+function setCodesForComment(idx, codes) { codesByComment[String(idx)] = codes; }
+function isCommentExcluded(idx) { return getCodesForComment(idx).includes('EXCLUDE'); }
+
+function syncSpanCodes(idx) {
+    let codes = getCodesForComment(idx);
+    let changed = false;
+    SPAN_TYPES.forEach(spanType => {
+        const hasCode = codes.includes(spanType);
+        const hasSpans = existingAnnotations.some(a => a.item_index === idx && (a.span_type || SPAN_TYPES[0]) === spanType);
+        if (hasSpans && !hasCode) { codes.push(spanType); changed = true; }
+        else if (!hasSpans && hasCode) { codes = codes.filter(c => c !== spanType); changed = true; }
+    });
+    if (changed) { setCodesForComment(idx, codes); saveCommentCodes(idx, codes); }
+    renderCodeButtons();
+}
+
+function renderCodeButtons() {
+    document.querySelectorAll('.code-toggle-btn').forEach(btn => {
+        const code = btn.dataset.code;
+        const idx = parseInt(btn.closest('.comment-codes-bar').dataset.index);
+        const codes = getCodesForComment(idx);
+        const info = COMMENT_CODES[code];
+        const excluded = isCommentExcluded(idx);
+        if (excluded) {
+            btn.disabled = true; btn.style.background = 'transparent'; btn.style.color = '#ccc';
+            btn.style.borderColor = '#ccc'; btn.style.fontWeight = 'normal'; btn.style.cursor = 'not-allowed';
+        } else {
+            btn.disabled = false; btn.style.borderColor = info.border_color; btn.style.cursor = 'pointer';
+            if (codes.includes(code)) {
+                btn.style.background = info.color; btn.style.color = info.border_color; btn.style.fontWeight = 'bold';
+            } else {
+                btn.style.background = 'transparent'; btn.style.color = info.border_color; btn.style.fontWeight = 'normal';
+            }
+        }
+    });
+
+    document.querySelectorAll('.span-badge').forEach(badge => {
+        const idx = parseInt(badge.dataset.index);
+        const spanType = badge.dataset.spanType;
+        const codes = getCodesForComment(idx);
+        if (codes.includes(spanType) && !isCommentExcluded(idx)) badge.classList.remove('d-none');
+        else badge.classList.add('d-none');
+    });
+
+    document.querySelectorAll('.pre-hedged-badge').forEach(badge => {
+        const idx = parseInt(badge.dataset.index);
+        const lastSpanType = SPAN_TYPES[SPAN_TYPES.length - 1];
+        const hasSpans = existingAnnotations.some(a => a.item_index === idx && a.span_type === lastSpanType);
+        if (hasSpans || isCommentExcluded(idx)) badge.style.display = 'none';
+        else badge.style.display = '';
+    });
+
+    document.querySelectorAll('.exclude-toggle-btn').forEach(btn => {
+        const idx = parseInt(btn.dataset.index);
+        const codes = getCodesForComment(idx);
+        const excluded = codes.includes('EXCLUDE');
+        const reasonBox = document.querySelector(`.exclude-reason-box[data-index="${idx}"]`);
+        const reasonInput = document.querySelector(`.exclude-reason-input[data-index="${idx}"]`);
+        if (excluded) {
+            btn.style.background = '#f1f5f9'; btn.style.color = '#64748b'; btn.style.fontWeight = 'bold';
+            reasonBox.classList.remove('d-none'); reasonInput.value = excludeReasons[String(idx)] || '';
+        } else {
+            btn.style.background = 'transparent'; btn.style.color = '#64748b'; btn.style.fontWeight = 'normal';
+            reasonBox.classList.add('d-none');
+        }
+    });
+
+    document.querySelectorAll('.clinical-comment-text').forEach(el => {
+        const idx = parseInt(el.dataset.index);
+        if (isCommentExcluded(idx)) { el.style.opacity = '0.4'; el.style.pointerEvents = 'none'; }
+        else { el.style.opacity = '1'; el.style.pointerEvents = 'auto'; }
+    });
+    document.querySelectorAll('.annotations-list').forEach(el => {
+        const idx = parseInt(el.dataset.index);
+        el.style.display = isCommentExcluded(idx) ? 'none' : '';
+    });
+    document.querySelectorAll('.progress-dot').forEach(dot => {
+        const idx = parseInt(dot.dataset.index);
+        const codes = getCodesForComment(idx);
+        const hasSpans = existingAnnotations.some(a => a.item_index === idx);
+        dot.classList.toggle('coded', codes.length > 0 || hasSpans);
+    });
+}
+
+function saveCommentCodes(idx, codes) {
+    const reason = excludeReasons[String(idx)] || '';
+    fetch(`/p/${SLUG}/api/codes/${POST_ID}/save`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment_index: idx, codes: codes, exclude_reason: reason }),
+    }).then(r => r.json()).then(d => {
+        if (d.ok) statusEl.innerHTML = '<small class="text-success">Codes saved</small>';
+    });
+}
+
+document.querySelectorAll('.code-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const idx = parseInt(this.closest('.comment-codes-bar').dataset.index);
+        if (isCommentExcluded(idx)) return;
+        const code = this.dataset.code;
+        let codes = getCodesForComment(idx);
+        if (codes.includes(code)) codes = codes.filter(c => c !== code);
+        else codes.push(code);
+        setCodesForComment(idx, codes);
+        saveCommentCodes(idx, codes);
+        renderCodeButtons();
+    });
+});
+
+document.querySelectorAll('.exclude-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const idx = parseInt(this.dataset.index);
+        let codes = getCodesForComment(idx);
+        if (codes.includes('EXCLUDE')) {
+            codes = codes.filter(c => c !== 'EXCLUDE');
+            excludeReasons[String(idx)] = '';
+        } else {
+            codes = ['EXCLUDE'];
+            const spansToDelete = existingAnnotations.filter(a => a.item_index === idx);
+            spansToDelete.forEach(a => { fetch(`/p/${SLUG}/api/annotation/${a.id}/delete`, { method: 'POST' }); });
+            existingAnnotations = existingAnnotations.filter(a => a.item_index !== idx);
+            renderHighlights();
+        }
+        setCodesForComment(idx, codes);
+        saveCommentCodes(idx, codes);
+        renderCodeButtons();
+    });
+});
+
+document.querySelectorAll('.exclude-reason-input').forEach(input => {
+    input.addEventListener('blur', function() {
+        const idx = parseInt(this.dataset.index);
+        excludeReasons[String(idx)] = this.value;
+        const codes = getCodesForComment(idx);
+        if (codes.includes('EXCLUDE')) saveCommentCodes(idx, codes);
+    });
+});
+
+document.querySelectorAll('.pre-hedged-badge').forEach(badge => {
+    badge.addEventListener('click', function() {
+        this.style.display = 'none';
+        preHedgedIndices.delete(parseInt(this.dataset.index));
+    });
+});
+
+document.querySelectorAll('.comment-annotation-card').forEach(card => {
+    card.addEventListener('mousedown', function() {
+        document.querySelectorAll('.comment-annotation-card').forEach(c => c.classList.remove('comment-active'));
+        this.classList.add('comment-active');
+    });
+});
+
+(function initCodes() {
+    const allIndices = new Set();
+    document.querySelectorAll('.comment-codes-bar').forEach(bar => { allIndices.add(parseInt(bar.dataset.index)); });
+    allIndices.forEach(idx => syncSpanCodes(idx));
+    renderCodeButtons();
+})();
+</script>
+
+<style>
+.progress-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #d1d5db; margin-right: 8px; vertical-align: middle; }
+.progress-dot.coded { background: #22c55e; }
+.comment-annotation-card { border-radius: 10px; overflow: hidden; }
+.comment-annotation-card .card-header { border-radius: 10px 10px 0 0; }
+.span-mode-bar { position: sticky; top: 0; z-index: 100; background: #fff !important; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-radius: 8px; }
+.span-mode-indicator { height: 3px; background: #ef4444; margin: -12px 0 12px 0; border-radius: 2px; }
+.hl-span { cursor: pointer; }
+.hl-span:hover { opacity: 0.7; }
+.span-mode-btn.active { box-shadow: 0 0 0 3px rgba(0,0,0,0.15); }
+kbd { background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 3px; padding: 1px 4px; }
+.comment-annotation-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.comment-annotation-card.comment-active { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); border-color: #93c5fd; }
+.card.mb-3:first-of-type { border-left: 4px solid #0ea5e9; border-radius: 8px; }
+.span-badge { border-radius: 20px !important; padding: 3px 10px !important; font-size: 0.72rem !important; letter-spacing: 0.3px; }
+.code-toggle-btn, .exclude-toggle-btn { border-radius: 20px !important; padding: 3px 12px !important; }
+</style>
+{% endblock %}

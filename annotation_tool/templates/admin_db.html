@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Database Viewer - {{ project.name }}{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Database Viewer</h4>
+    <a href="{{ url_for('admin', slug=project.slug) }}" class="btn btn-sm btn-outline-dark">Back to Admin</a>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2">
+            {% for t in tables %}
+            <a href="{{ url_for('admin_db', slug=project.slug, table=t) }}"
+               class="btn btn-sm {{ 'btn-primary' if t == selected else 'btn-outline-secondary' }}">
+                {{ t }} <span class="badge bg-{{ 'light text-dark' if t == selected else 'secondary' }} ms-1">{{ table_counts[t] }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% if selected %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <code>{{ selected }}</code>
+            <span class="text-muted ms-2">{{ row_count }} total rows</span>
+            {% if row_count > limit %}
+            <span class="text-muted ms-1">(showing {{ offset + 1 }}&ndash;{{ [offset + limit, row_count] | min }})</span>
+            {% endif %}
+        </h6>
+        {% if row_count > limit %}
+        <div class="d-flex gap-1">
+            {% if offset > 0 %}
+            <a href="{{ url_for('admin_db', slug=project.slug, table=selected, limit=limit, offset=[offset - limit, 0] | max) }}" class="btn btn-sm btn-outline-secondary">&larr; Prev</a>
+            {% endif %}
+            {% if offset + limit < row_count %}
+            <a href="{{ url_for('admin_db', slug=project.slug, table=selected, limit=limit, offset=offset + limit) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="card-body p-0">
+        {% if rows %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-sm mb-0" style="font-size: 0.8rem;">
+                <thead class="table-dark">
+                    <tr>{% for col in columns %}<th style="white-space: nowrap;">{{ col }}</th>{% endfor %}</tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        {% for val in row %}
+                        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ val }}">
+                            {% if val is none %}<span class="text-muted">NULL</span>{% else %}{{ val }}{% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-3 text-muted">No rows in this table.</div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">Select a table above to view its contents.</div>
+{% endif %}
+
+{% endblock %}
