@@ -1,0 +1,22 @@
+databases:
+  - name: suboxone-annotation-db
+    plan: free
+    databaseName: suboxone_annotation
+    user: suboxone_user
+
+services:
+  - type: web
+    name: suboxone-annotation-app
+    runtime: python
+    rootDir: suboxone_app
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: suboxone-annotation-db
+          property: connectionString

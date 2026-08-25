@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Admin Review: {{ post.title }}{% endblock %}
+{% block content %}
+
+<!-- Nav -->
+<div class="d-flex justify-content-between mb-3">
+    {% if prev_id %}
+    <a href="{{ url_for('admin_review', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>
+    {% else %}<span></span>{% endif %}
+    <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
+    {% if next_id %}
+    <a href="{{ url_for('admin_review', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
+    {% else %}<span></span>{% endif %}
+</div>
+
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between">
+        <h6 class="mb-0"><code class="me-2">{{ post.post_id }}</code>{{ post.title }}</h6>
+        <a href="{{ post.link }}" target="_blank" class="btn btn-sm btn-outline-danger">Reddit</a>
+    </div>
+</div>
+
+<!-- Expert filter -->
+<div class="mb-3">
+    <label class="form-label small fw-bold">Filter by expert:</label>
+    <select id="expertFilter" class="form-select form-select-sm" style="max-width:200px;">
+        <option value="all">All experts</option>
+        {% for name in expert_names %}
+        <option value="{{ name }}">{{ name }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card sticky-panel mb-3">
+            <div class="card-header"><h6 class="mb-0">Original Post</h6></div>
+            <div class="card-body source-panel">
+                <div class="border rounded p-2 bg-light" style="font-size:0.85rem; white-space:pre-wrap;">{{ comment_data.get('body', '(No body)') }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8" id="commentsContainer">
+        {% for item in post.advice %}
+        <div class="comment-source d-none" data-index="{{ loop.index0 }}" data-num="{{ loop.index }}">{{ item.advice }}</div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const allAnnotations = {{ all_annotations | tojson }};
+const allCodes = {{ all_codes | tojson }};
+const commentCodesConfig = {{ comment_codes | tojson }};
+const commentCount = {{ post.advice | length }};
+const expertColors = {};
+const colors = ['#0d6efd', '#198754', '#dc3545', '#fd7e14', '#6610f2', '#20c997', '#d63384'];
+let ci = 0;
+
+const rawTexts = {};
+document.querySelectorAll('.comment-source').forEach(el => {
+    rawTexts[parseInt(el.dataset.index)] = el.textContent;
+});
+
+function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+function getExpertColor(name) {
+    if (!expertColors[name]) expertColors[name] = colors[ci++ % colors.length];
+    return expertColors[name];
+}
+
+const SPAN_STYLES = {
+    CLAIM:  { bg: '#ef444422', border: '#ef4444', label: 'CLAIM' },
+    HEDGED: { bg: '#eab30822', border: '#eab308', label: 'HEDGED' },
+};
+
+function highlightText(rawText, spans) {
+    spans.sort((a, b) => a.start - b.start);
+    const merged = [];
+    for (const h of spans) {
+        if (merged.length && merged[merged.length - 1].end > h.start) continue;
+        merged.push(h);
+    }
+    let html = '', cursor = 0;
+    for (const h of merged) {
+        if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
+        const s = SPAN_STYLES[h.span_type] || SPAN_STYLES.CLAIM;
+        html += `<mark style="background:${s.bg}; border-bottom:2px solid ${s.border};" title="${s.label}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
+        cursor = h.end;
+    }
+    if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
+    return html;
+}
+
+function renderAll(filter) {
+    const container = document.getElementById('commentsContainer');
+    container.querySelectorAll('.comment-card-rendered').forEach(el => el.remove());
+
+    const annots = filter === 'all' ? allAnnotations : allAnnotations.filter(a => a.expert_name === filter);
+    const codes = filter === 'all' ? allCodes : allCodes.filter(c => c.expert_name === filter);
+
+    const expertSet = new Set();
+    annots.forEach(a => expertSet.add(a.expert_name));
+    codes.forEach(c => expertSet.add(c.expert_name));
+    const expertList = [...expertSet].sort();
+
+    for (let idx = 0; idx < commentCount; idx++) {
+        const rawText = rawTexts[idx];
+        const commentNum = idx + 1;
+
+        if (expertList.length === 0) {
+            const card = document.createElement('div');
+            card.className = 'card mb-3 comment-card-rendered';
+            card.innerHTML = `
+                <div class="card-header"><h6 class="mb-0">Comment ${commentNum}</h6></div>
+                <div class="card-body">
+                    <div style="font-size:0.85rem; white-space:pre-wrap;">${escHtml(rawText)}</div>
+                </div>
+            `;
+            container.appendChild(card);
+            continue;
+        }
+
+        expertList.forEach(expertName => {
+            const expertAnnots = annots.filter(a => a.item_index === idx && a.expert_name === expertName);
+            const expertCodes = codes.filter(c => c.comment_index === idx && c.expert_name === expertName);
+
+            if (expertAnnots.length === 0 && expertCodes.length === 0) return;
+
+            const color = getExpertColor(expertName);
+            const card = document.createElement('div');
+            card.className = 'card mb-2 comment-card-rendered';
+            card.style.borderLeft = `4px solid ${color}`;
+            card.dataset.expert = expertName;
+
+            let codesHtml = '';
+            if (expertCodes.length > 0) {
+                const entry = expertCodes[0];
+                codesHtml = entry.codes.map(c => {
+                    const info = commentCodesConfig[c] || {};
+                    return `<span class="badge ms-1" style="background:${info.color || '#eee'}; color:${info.border_color || '#333'}; border:1px solid ${info.border_color || '#ccc'};">${c}</span>`;
+                }).join('');
+                if (entry.exclude_reason) {
+                    codesHtml += ` <em class="ms-1 text-muted" style="font-size:0.8rem;">(${escHtml(entry.exclude_reason)})</em>`;
+                }
+            }
+
+            const textHtml = expertAnnots.length > 0 ? highlightText(rawText, expertAnnots) : escHtml(rawText);
+
+            card.innerHTML = `
+                <div class="card-header py-1 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0" style="font-size:0.85rem;">Comment ${commentNum}</h6>
+                    <span class="badge" style="background:${color};">${expertName}</span>
+                </div>
+                <div class="card-body py-2">
+                    ${codesHtml ? `<div class="mb-2">${codesHtml}</div>` : ''}
+                    <div style="font-size:0.85rem; white-space:pre-wrap;">${textHtml}</div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+}
+
+document.getElementById('expertFilter').addEventListener('change', function() { renderAll(this.value); });
+renderAll('all');
+</script>
+{% endblock %}
