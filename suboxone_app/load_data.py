@@ -1,4 +1,4 @@
-import csv
+import csv, re
 from pathlib import Path
 from collections import OrderedDict
 
@@ -33,17 +33,111 @@ def _load_csv(path):
     return grouped
 
 
+def _norm(text):
+    """Normalize whitespace and strip quotes for comparison."""
+    return re.sub(r'\s+', ' ', text).strip().strip('"').strip("'")
+
+
 def _find_span_offsets(comment_text, span_text):
-    """Find start/end offsets of span_text within comment_text."""
+    """Find start/end offsets of span_text within comment_text.
+    Uses multiple strategies: exact, whitespace-normalized, quote-stripped,
+    prefix-based expansion, and longest-prefix matching."""
+
+    # Strategy 1: Exact substring match
     idx = comment_text.find(span_text)
     if idx >= 0:
         return idx, idx + len(span_text)
-    # Try case-insensitive or trimmed match
-    lower_comment = comment_text.lower()
-    lower_span = span_text.lower()
-    idx = lower_comment.find(lower_span)
+
+    # Strategy 2: Quote-stripped match
+    stripped = span_text.strip('"').strip("'").strip()
+    if stripped != span_text:
+        idx = comment_text.find(stripped)
+        if idx >= 0:
+            return idx, idx + len(stripped)
+
+    # Strategy 3: Whitespace-normalized match
+    norm_comment = _norm(comment_text)
+    norm_span = _norm(span_text)
+    idx = norm_comment.find(norm_span)
     if idx >= 0:
-        return idx, idx + len(span_text)
+        # Map normalized offset back to original text
+        return _map_norm_offset(comment_text, norm_comment, idx, len(norm_span))
+
+    # Strategy 4: Case-insensitive normalized match
+    idx = norm_comment.lower().find(norm_span.lower())
+    if idx >= 0:
+        return _map_norm_offset(comment_text, norm_comment, idx, len(norm_span))
+
+    # Strategy 5: Prefix-based — find where the span starts in the comment,
+    # then extend to cover as much of the comment as the span is long.
+    # Use progressively shorter prefixes to find anchor point.
+    for prefix_len in [60, 40, 25, 15]:
+        if len(norm_span) < prefix_len:
+            continue
+        prefix = norm_span[:prefix_len]
+        idx = norm_comment.find(prefix)
+        if idx < 0:
+            idx = norm_comment.lower().find(prefix.lower())
+        if idx >= 0:
+            # Found anchor — extend to span length, but don't exceed comment
+            end_idx = min(idx + len(norm_span), len(norm_comment))
+            return _map_norm_offset(comment_text, norm_comment, idx, end_idx - idx)
+
+    # Strategy 6: Multi-fragment — span has comma/period-separated claims that
+    # appear at different positions in the comment. Find each fragment.
+    # Return the span covering from first match to last match.
+    fragments = [f.strip() for f in re.split(r'[,.]', norm_span) if len(f.strip()) > 10]
+    if len(fragments) >= 2:
+        positions = []
+        for frag in fragments:
+            fi = norm_comment.find(frag)
+            if fi < 0:
+                fi = norm_comment.lower().find(frag.lower())
+            if fi >= 0:
+                positions.append((fi, fi + len(frag)))
+        if len(positions) >= len(fragments) // 2:
+            first = min(p[0] for p in positions)
+            last = max(p[1] for p in positions)
+            return _map_norm_offset(comment_text, norm_comment, first, last - first)
+
+    return None, None
+
+
+def _map_norm_offset(original, normalized, norm_start, norm_len):
+    """Map an offset in whitespace-normalized text back to the original text."""
+    # Walk through original text, tracking position in normalized version
+    orig_i = 0
+    norm_i = 0
+    start_orig = None
+    end_orig = None
+
+    # Skip leading whitespace in normalized
+    while orig_i < len(original) and norm_i < norm_start:
+        if original[orig_i].isspace():
+            # In normalized, consecutive whitespace = 1 space
+            if orig_i == 0 or not original[orig_i - 1].isspace():
+                norm_i += 1
+            orig_i += 1
+        else:
+            norm_i += 1
+            orig_i += 1
+
+    start_orig = orig_i
+
+    # Now walk norm_len characters
+    chars_counted = 0
+    while orig_i < len(original) and chars_counted < norm_len:
+        if original[orig_i].isspace():
+            if orig_i == 0 or not original[orig_i - 1].isspace():
+                chars_counted += 1
+            orig_i += 1
+        else:
+            chars_counted += 1
+            orig_i += 1
+
+    end_orig = orig_i
+    if start_orig is not None and end_orig is not None and end_orig > start_orig:
+        return start_orig, end_orig
     return None, None
 
 
