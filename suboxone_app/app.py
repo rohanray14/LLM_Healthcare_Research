@@ -308,11 +308,16 @@ def review(post_id):
     prev_id = nav_ids[idx - 1] if idx > 0 else None
     next_id = nav_ids[idx + 1] if idx < len(nav_ids) - 1 else None
 
+    # Build set of comment indices that had HEDGED in the original CSV data
+    pre = PRE_ANNOTATIONS.get(post_id, {})
+    pre_hedged = {ci for ci, data in pre.items() if "HEDGED" in data.get("codes", [])}
+
     return render_template("review.html", post=post, comment_data=comment_data,
                            existing_annotations=existing_annotations,
                            codes_by_comment=codes_by_comment,
                            exclude_reasons=exclude_reasons,
                            comment_codes=COMMENT_CODES,
+                           pre_hedged=sorted(pre_hedged),
                            prev_id=prev_id, next_id=next_id,
                            username=session.get("username"))
 

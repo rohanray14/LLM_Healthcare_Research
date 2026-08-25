@@ -117,6 +117,13 @@
                           style="background: {{ comment_codes.HEDGED.color }}; color: {{ comment_codes.HEDGED.border_color }}; border: 1px solid {{ comment_codes.HEDGED.border_color }}; font-size: 0.78rem; vertical-align: middle;">
                         HEDGED (auto)
                     </span>
+                    {% if outer_idx in pre_hedged %}
+                    <span class="badge ms-1 mb-1 pre-hedged-badge" data-index="{{ outer_idx }}"
+                          style="background: {{ comment_codes.HEDGED.color }}; color: {{ comment_codes.HEDGED.border_color }}; border: 2px dashed {{ comment_codes.HEDGED.border_color }}; font-size: 0.78rem; vertical-align: middle; border-radius: 20px; padding: 3px 10px;"
+                          title="This comment was flagged as HEDGED in the dataset — please highlight the hedged text using Hedge span mode (H)">
+                        HEDGE (needs span)
+                    </span>
+                    {% endif %}
                     <span class="ms-2" style="border-left: 1px solid #ccc; padding-left: 8px;">
                         <button type="button"
                                 class="btn btn-sm exclude-toggle-btn mb-1"
@@ -155,6 +162,7 @@ let existingAnnotations = {{ existing_annotations | tojson }};
 const COMMENT_CODES = {{ comment_codes | tojson }};
 let codesByComment = {{ codes_by_comment | tojson }};
 let excludeReasons = {{ exclude_reasons | tojson }};
+const preHedgedIndices = new Set({{ pre_hedged | tojson }});
 
 // ── Span mode (CLAIM or HEDGED) ──
 let currentSpanMode = 'CLAIM';
@@ -403,8 +411,14 @@ function syncSpanCodes(idx) {
             codes.push(spanType);
             changed = true;
         } else if (!hasSpans && hasCode) {
-            codes = codes.filter(c => c !== spanType);
-            changed = true;
+            // Don't remove HEDGED if this comment was pre-annotated as HEDGED
+            // (it needs manual span annotation, so keep the code visible)
+            if (spanType === 'HEDGED' && preHedgedIndices.has(idx)) {
+                // Keep HEDGED code — annotator still needs to highlight spans
+            } else {
+                codes = codes.filter(c => c !== spanType);
+                changed = true;
+            }
         }
     });
 
@@ -453,6 +467,17 @@ function renderCodeButtons() {
             badge.classList.remove('d-none');
         } else {
             badge.classList.add('d-none');
+        }
+    });
+
+    // "HEDGE (needs span)" badges — hide once annotator has added HEDGED spans
+    document.querySelectorAll('.pre-hedged-badge').forEach(badge => {
+        const idx = parseInt(badge.dataset.index);
+        const hasHedgeSpans = existingAnnotations.some(a => a.item_index === idx && a.span_type === 'HEDGED');
+        if (hasHedgeSpans || isCommentExcluded(idx)) {
+            badge.style.display = 'none';
+        } else {
+            badge.style.display = '';
         }
     });
 
