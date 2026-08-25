@@ -74,8 +74,10 @@
                 </td>
                 {% if is_admin %}
                 <td>
-                    {% if post.annotator_count > 0 %}
-                    <span class="badge bg-info text-dark">{{ post.annotator_count }}</span>
+                    {% if post.assigned_names %}
+                    {% for name in post.assigned_names %}
+                    <span class="badge bg-info text-dark">{{ name }}</span>
+                    {% endfor %}
                     {% else %}--{% endif %}
                 </td>
                 {% endif %}

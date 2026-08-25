@@ -163,11 +163,21 @@ def dashboard():
             annotator_count = db.session.query(
                 db.func.count(db.func.distinct(CommentCode.expert_id))
             ).filter_by(post_id=pid).scalar() or 0
+            # Names from assignments
+            assigned_set = {r.username for r in db.session.query(Expert.username)
+                            .join(Assignment, Expert.id == Assignment.expert_id)
+                            .filter(Assignment.post_id == pid).all()}
+            # Names from who has actually coded
+            coded_set = {r.username for r in db.session.query(Expert.username)
+                         .join(CommentCode, Expert.id == CommentCode.expert_id)
+                         .filter(CommentCode.post_id == pid).distinct().all()}
+            assigned_names = sorted(assigned_set | coded_set)
         else:
             coded_count = db.session.query(
                 db.func.count(db.func.distinct(CommentCode.comment_index))
             ).filter_by(expert_id=expert.id, post_id=pid).scalar() or 0
             annotator_count = 0
+            assigned_names = []
 
         posts_list.append({
             "post_id": pid,
@@ -175,6 +185,7 @@ def dashboard():
             "num_comments": len(post["advice"]),
             "coded_comments": coded_count,
             "annotator_count": annotator_count,
+            "assigned_names": assigned_names,
             "link": post["link"],
         })
 
