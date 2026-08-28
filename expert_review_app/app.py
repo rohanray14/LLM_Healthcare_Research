@@ -129,15 +129,19 @@ def dashboard():
             annotated_comments = db.session.query(
                 db.func.count(db.func.distinct(TextAnnotation.item_index))
             ).filter_by(post_id=pid, model_name=model_name).scalar() or 0
-            # Count how many distinct experts have annotated this post
-            annotator_count = db.session.query(
-                db.func.count(db.func.distinct(TextAnnotation.expert_id))
-            ).filter_by(post_id=pid, model_name=model_name).scalar() or 0
+            # Get annotator names for this post
+            assigned_set = {r.username for r in db.session.query(Expert.username)
+                            .join(Assignment, Expert.id == Assignment.expert_id)
+                            .filter(Assignment.post_id == pid).all()}
+            coded_set = {r.username for r in db.session.query(Expert.username)
+                         .join(TextAnnotation, Expert.id == TextAnnotation.expert_id)
+                         .filter(TextAnnotation.post_id == pid, TextAnnotation.model_name == model_name).distinct().all()}
+            assigned_names = sorted(assigned_set | coded_set)
         else:
             annotated_comments = db.session.query(
                 db.func.count(db.func.distinct(TextAnnotation.item_index))
             ).filter_by(expert_id=expert.id, post_id=pid, model_name=model_name).scalar() or 0
-            annotator_count = 0
+            assigned_names = []
 
         posts_list.append({
             "post_id": pid,
@@ -145,7 +149,7 @@ def dashboard():
             "class_label": post["class_label"],
             "num_comments": len(post["advice"]),
             "annotated_comments": annotated_comments,
-            "annotator_count": annotator_count,
+            "assigned_names": assigned_names,
             "link": post["link"],
             "split": post.get("split", ""),
         })

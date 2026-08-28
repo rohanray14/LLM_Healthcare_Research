@@ -86,11 +86,11 @@
                 </td>
                 {% if is_admin %}
                 <td>
-                    {% if p.annotator_count > 0 %}
-                    <span class="badge bg-success">{{ p.annotator_count }}</span>
-                    {% else %}
-                    <span class="text-muted">--</span>
-                    {% endif %}
+                    {% if p.assigned_names %}
+                    {% for name in p.assigned_names %}
+                    <span class="badge bg-info text-dark">{{ name }}</span>
+                    {% endfor %}
+                    {% else %}--{% endif %}
                 </td>
                 {% endif %}
                 <td>
