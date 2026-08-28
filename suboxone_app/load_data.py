@@ -150,9 +150,11 @@ def load_all():
     post_ids = []
 
     for csv_file in sorted(BASE.glob("*.csv")):
-        split = csv_file.stem  # "dev" or "test"
+        split = csv_file.stem  # "dev", "test", or "train"
         grouped = _load_csv(csv_file)
-        for pid, info in grouped.items():
+        for raw_pid, info in grouped.items():
+            # Prefix post IDs for train split to avoid collisions with dev/test
+            pid = f"train_{raw_pid}" if split == "train" else raw_pid
             if pid in posts:
                 # Skip duplicates across files
                 continue
@@ -174,7 +176,7 @@ def load_all():
                 # Parse span_if_claim (newline-separated spans)
                 spans = []
                 if c["span_if_claim"]:
-                    span_parts = [s.strip() for s in c["span_if_claim"].split("\n") if s.strip()]
+                    span_parts = [s.strip().strip('"') for s in c["span_if_claim"].split("\n") if s.strip()]
                     seen_offsets = set()
                     for span_text in span_parts:
                         start, end = _find_span_offsets(c["comment_body"], span_text)
@@ -199,7 +201,7 @@ def load_all():
                 "body": info["body"],
                 "labels": info["labels"],
                 "split": split,
-                "link": f"https://www.reddit.com/r/suboxone/comments/{pid}/",
+                "link": f"https://www.reddit.com/r/suboxone/comments/{raw_pid}/",
                 "advice": advice_items,
             }
 
