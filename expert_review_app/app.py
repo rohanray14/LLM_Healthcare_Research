@@ -506,8 +506,8 @@ def admin():
                     total_words += len((item.get("advice") or "").split())
         annot_count = TextAnnotation.query.filter_by(expert_id=e.id).count()
         annotated_comments = db.session.query(
-            db.func.count(db.func.distinct(TextAnnotation.item_index))
-        ).filter_by(expert_id=e.id).scalar() or 0
+            TextAnnotation.post_id, TextAnnotation.item_index
+        ).filter_by(expert_id=e.id).distinct().count()
         expert_stats[e.id] = {
             "total_comments": total_comments,
             "total_words": total_words,
