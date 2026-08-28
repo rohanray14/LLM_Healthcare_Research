@@ -578,10 +578,8 @@ def admin(slug):
             if post:
                 total_comments += Comment.query.filter_by(post_ref_id=post.id).count()
         coded_comments = db.session.query(
-            db.func.count(db.func.distinct(
-                CommentCode.post_id + '_' + db.cast(CommentCode.comment_index, db.String)
-            ))
-        ).filter_by(expert_id=e.id).scalar() or 0
+            CommentCode.post_id, CommentCode.comment_index
+        ).filter_by(expert_id=e.id).distinct().count()
         expert_stats[e.id] = {
             "total_comments": total_comments,
             "coded_comments": coded_comments,
