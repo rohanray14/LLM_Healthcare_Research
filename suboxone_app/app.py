@@ -439,7 +439,9 @@ def admin():
                     total_comments += 1
                     total_words += len((item.get("advice") or "").split())
         coded_comments = db.session.query(
-            db.func.count(db.func.distinct(CommentCode.comment_index))
+            db.func.count(db.func.distinct(
+                CommentCode.post_id + '_' + db.cast(CommentCode.comment_index, db.String)
+            ))
         ).filter_by(expert_id=e.id).scalar() or 0
         expert_stats[e.id] = {
             "total_comments": total_comments,
