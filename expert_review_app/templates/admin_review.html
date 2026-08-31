@@ -163,13 +163,15 @@ function renderAll(filter) {
                 const fCls = getLikertBadgeClass(a.verdict);
                 const hCls = getLikertBadgeClass(a.harm_verdict);
                 annotsHtml += `
-                    <div class="annotation-tag">
-                        <span class="badge bg-${fCls}" title="Factual accuracy">FA: ${getLikertLabel(a.verdict)}</span>
-                        <span class="badge bg-${hCls} ms-1" title="Potential harm">PH: ${getLikertLabel(a.harm_verdict)}</span>
-                        <em class="ms-1">"${escHtml(a.text.substring(0, 80))}${a.text.length > 80 ? '...' : ''}"</em>
-                        ${a.annotation ? ` — ${escHtml(a.annotation)}` : ''}
-                        ${a.factual_reasoning ? ` <span class="badge bg-warning text-dark ms-1">Factual: ${escHtml(a.factual_reasoning.substring(0, 60))}${a.factual_reasoning.length > 60 ? '...' : ''}</span>` : ''}
-                        ${a.harm_reasoning ? ` <span class="badge bg-danger ms-1">Harm: ${escHtml(a.harm_reasoning.substring(0, 60))}${a.harm_reasoning.length > 60 ? '...' : ''}</span>` : ''}
+                    <div class="annotation-tag mb-2 p-2 border rounded" style="background:#f8f9fa; font-size:0.82rem;">
+                        <div class="d-flex align-items-center flex-wrap gap-1 mb-1">
+                            <span class="badge bg-${fCls}" title="Factual accuracy">FA: ${getLikertLabel(a.verdict)}</span>
+                            <span class="badge bg-${hCls}" title="Potential harm">PH: ${getLikertLabel(a.harm_verdict)}</span>
+                            <em>"${escHtml(a.text)}"</em>
+                        </div>
+                        ${a.annotation ? `<div class="ms-1 mb-1" style="color:#555;"><strong>Annotation:</strong> ${escHtml(a.annotation)}</div>` : ''}
+                        ${a.factual_reasoning ? `<div class="ms-1 mb-1"><span class="badge bg-warning text-dark">Factual:</span> <span style="color:#555;">${escHtml(a.factual_reasoning)}</span></div>` : ''}
+                        ${a.harm_reasoning ? `<div class="ms-1 mb-1"><span class="badge bg-danger">Harm:</span> <span style="color:#555;">${escHtml(a.harm_reasoning)}</span></div>` : ''}
                     </div>
                 `;
             });

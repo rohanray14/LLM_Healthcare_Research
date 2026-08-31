@@ -157,10 +157,9 @@ function renderAll(filter) {
                 annotDetailsHtml = '<div class="mt-2 pt-2" style="border-top: 1px solid #e9ecef;">';
                 expertAnnots.sort((a, b) => a.start - b.start).forEach(a => {
                     const s = SPAN_STYLES[a.span_type] || SPAN_STYLES.CLAIM;
-                    const truncText = a.text.length > 80 ? a.text.substring(0, 80) + '...' : a.text;
                     annotDetailsHtml += `<div class="d-flex align-items-start gap-2 mb-1" style="font-size:0.8rem;">`;
                     annotDetailsHtml += `<span class="badge" style="background:${s.bg}; color:${s.border}; border:1px solid ${s.border}; white-space:nowrap; flex-shrink:0;">${s.label}</span>`;
-                    annotDetailsHtml += `<em style="color:#555;">"${escHtml(truncText)}"</em>`;
+                    annotDetailsHtml += `<em style="color:#555;">"${escHtml(a.text)}"</em>`;
                     if (a.verdict) {
                         const vColor = a.verdict === 'correct' ? '#198754' : a.verdict === 'incorrect' ? '#dc3545' : '#6c757d';
                         annotDetailsHtml += `<span class="badge" style="background:${vColor}; white-space:nowrap; flex-shrink:0;">FA: ${a.verdict}</span>`;
