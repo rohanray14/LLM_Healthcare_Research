@@ -152,9 +152,7 @@ def load_all():
     for csv_file in sorted(BASE.glob("*.csv")):
         split = csv_file.stem  # "dev", "test", or "train"
         grouped = _load_csv(csv_file)
-        for raw_pid, info in grouped.items():
-            # Prefix post IDs for train split to avoid collisions with dev/test
-            pid = f"train_{raw_pid}" if split == "train" else raw_pid
+        for pid, info in grouped.items():
             if pid in posts:
                 # Skip duplicates across files
                 continue
@@ -201,7 +199,7 @@ def load_all():
                 "body": info["body"],
                 "labels": info["labels"],
                 "split": split,
-                "link": f"https://www.reddit.com/r/suboxone/comments/{raw_pid}/",
+                "link": f"https://www.reddit.com/r/suboxone/comments/{pid}/",
                 "advice": advice_items,
             }
 

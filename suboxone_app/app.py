@@ -719,6 +719,13 @@ def migrate_schema():
                     db.session.execute(text(f"ALTER TABLE text_annotation ADD COLUMN {col} {coltype}"))
             db.session.commit()
 
+        # Strip "train_" prefix from post_id in all tables
+        for tbl in ["text_annotation", "comment_code", "assignment", "pre_seed_log"]:
+            if tbl in tables:
+                db.session.execute(text(
+                    f"UPDATE \"{tbl}\" SET post_id = SUBSTR(post_id, 7) WHERE post_id LIKE 'train_%'"
+                ))
+        db.session.commit()
         logging.info("[migrate] Schema migration complete")
     except Exception as e:
         logging.error(f"[migrate] Schema migration error: {e}")
