@@ -144,7 +144,9 @@ def dashboard():
         assigned_ids = {a.post_id for a in Assignment.query.filter_by(expert_id=expert.id).all()}
         if not assigned_ids:
             return render_template("dashboard.html", posts=[], search=search,
-                                   username=session.get("username"), is_admin=False)
+                                   username=session.get("username"), is_admin=False,
+                                   total_comments=0, total_coded=0,
+                                   all_annotator_names=[], all_splits=[])
 
     posts_list = []
     for pid in POST_IDS:
@@ -182,6 +184,7 @@ def dashboard():
         posts_list.append({
             "post_id": pid,
             "title": post["title"],
+            "split": post.get("split", ""),
             "num_comments": len(post["advice"]),
             "coded_comments": coded_count,
             "annotator_count": annotator_count,
@@ -194,9 +197,14 @@ def dashboard():
     total_comments = sum(p["num_comments"] for p in posts_list)
     total_coded = sum(p["coded_comments"] for p in posts_list)
 
+    all_annotator_names = sorted({name for p in posts_list for name in p["assigned_names"]})
+    all_splits = sorted({p["split"] for p in posts_list if p["split"]})
+
     return render_template("dashboard.html", posts=posts_list, search=search,
                            username=session.get("username"), is_admin=is_admin,
-                           total_comments=total_comments, total_coded=total_coded)
+                           total_comments=total_comments, total_coded=total_coded,
+                           all_annotator_names=all_annotator_names,
+                           all_splits=all_splits)
 
 
 # ── Review Page ───────────────────────────────────────

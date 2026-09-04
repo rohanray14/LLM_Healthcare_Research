@@ -9,6 +9,24 @@
             <div class="col-auto">
                 <input type="text" name="search" class="form-control form-control-sm" value="{{ search }}" placeholder="Search title or ID...">
             </div>
+            {% if is_admin %}
+            <div class="col-auto">
+                <select id="filterAnnotator" class="form-select form-select-sm" style="width:auto;">
+                    <option value="">All Annotators</option>
+                    {% for name in all_annotator_names %}
+                    <option value="{{ name }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="col-auto">
+                <select id="filterType" class="form-select form-select-sm" style="width:auto;">
+                    <option value="">All Types</option>
+                    {% for s in all_splits %}
+                    <option value="{{ s }}">{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="col-auto">
                 <button type="submit" class="btn btn-sm btn-primary">Filter</button>
                 <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
@@ -52,6 +70,7 @@
                 <th>#</th>
                 <th>Post ID</th>
                 <th>Title</th>
+                <th>Type</th>
                 <th>Comments</th>
                 <th>Coded</th>
                 {% if is_admin %}<th>Annotators</th>{% endif %}
@@ -60,10 +79,15 @@
         </thead>
         <tbody>
             {% for post in posts %}
-            <tr>
+            <tr data-split="{{ post.split }}" data-annotators="{{ post.assigned_names | join(',') }}">
                 <td>{{ loop.index }}</td>
                 <td><code>{{ post.post_id }}</code></td>
                 <td>{{ post.title[:70] }}{% if post.title|length > 70 %}...{% endif %}</td>
+                <td>
+                    {% if post.split %}
+                    <span class="badge {{ 'bg-primary' if post.split == 'dev' else 'bg-warning text-dark' if post.split == 'test' else 'bg-secondary' }}" style="font-size:0.7rem;">{{ post.split }}</span>
+                    {% endif %}
+                </td>
                 <td>{{ post.num_comments }}</td>
                 <td>
                     {% if post.coded_comments > 0 %}
@@ -97,4 +121,26 @@
 <div class="alert alert-info">No posts assigned yet. Contact your admin for assignments.</div>
 {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+function applyFilters() {
+    const typeVal = document.getElementById('filterType').value;
+    const annotatorEl = document.getElementById('filterAnnotator');
+    const annotatorVal = annotatorEl ? annotatorEl.value : '';
+    const rows = document.querySelectorAll('table tbody tr');
+    rows.forEach(row => {
+        const split = row.dataset.split || '';
+        const annotators = row.dataset.annotators || '';
+        let show = true;
+        if (typeVal && split !== typeVal) show = false;
+        if (annotatorVal && !annotators.split(',').includes(annotatorVal)) show = false;
+        row.style.display = show ? '' : 'none';
+    });
+}
+document.getElementById('filterType').addEventListener('change', applyFilters);
+const annotatorEl = document.getElementById('filterAnnotator');
+if (annotatorEl) annotatorEl.addEventListener('change', applyFilters);
+</script>
 {% endblock %}
