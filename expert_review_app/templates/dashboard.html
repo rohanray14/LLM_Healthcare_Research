@@ -10,6 +10,14 @@
         <form method="GET" class="row g-2 justify-content-end">
             {% if is_admin %}
             <div class="col-auto">
+                <select name="split" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Splits</option>
+                    {% for s in all_splits %}
+                    <option value="{{ s }}" {% if split_filter == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
                 <select name="annotator" class="form-select form-select-sm" onchange="this.form.submit()">
                     <option value="">All Annotators</option>
                     {% for name in all_annotator_names %}
@@ -92,7 +100,7 @@
                 {% if is_admin %}<td><span class="badge bg-{{ 'primary' if p.split == 'dev' else 'warning text-dark' }}">{{ p.split }}</span></td>{% endif %}
                 <td>{{ p.num_comments }}</td>
                 <td>
-                    <span class="badge bg-{{ 'success' if p.annotated_comments == p.num_comments else 'info' }}">{{ p.annotated_comments }}/{{ p.num_comments }}</span>
+                    <span class="badge bg-{{ 'success' if p.annotated_comments == p.num_comments else ('warning text-dark' if p.annotated_comments > 0 else 'info') }}">{{ p.annotated_comments }}/{{ p.num_comments }}</span>
                 </td>
                 {% if is_admin %}
                 <td>

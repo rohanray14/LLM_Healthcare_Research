@@ -96,6 +96,7 @@ def dashboard():
 
     search = request.args.get("search", "").strip()
     annotator_filter = request.args.get("annotator", "").strip()
+    split_filter = request.args.get("split", "").strip()
     model_name = "comment_annotations"
     is_admin = expert.username == "admin"
 
@@ -155,10 +156,13 @@ def dashboard():
             "split": post.get("split", ""),
         })
 
-    # Collect all annotator names for the filter dropdown (admin only)
+    # Collect all filter options from the full list (admin only)
     all_annotator_names = sorted({name for p in posts_list for name in p.get("assigned_names", [])}) if is_admin else []
+    all_splits = sorted({p["split"] for p in posts_list if p.get("split")}) if is_admin else []
 
-    # Apply annotator filter (admin only)
+    # Apply filters (admin only)
+    if is_admin and split_filter:
+        posts_list = [p for p in posts_list if p.get("split") == split_filter]
     if is_admin and annotator_filter:
         posts_list = [p for p in posts_list if annotator_filter in p.get("assigned_names", [])]
 
@@ -178,7 +182,9 @@ def dashboard():
         posts=posts_list,
         search=search,
         annotator_filter=annotator_filter,
+        split_filter=split_filter,
         all_annotator_names=all_annotator_names,
+        all_splits=all_splits,
         username=session.get("username"),
         is_admin=is_admin,
         total_comments=total_comments,
