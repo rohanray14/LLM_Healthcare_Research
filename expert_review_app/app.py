@@ -95,6 +95,7 @@ def dashboard():
         return redirect(url_for("login"))
 
     search = request.args.get("search", "").strip()
+    annotator_filter = request.args.get("annotator", "").strip()
     model_name = "comment_annotations"
     is_admin = expert.username == "admin"
 
@@ -154,6 +155,13 @@ def dashboard():
             "split": post.get("split", ""),
         })
 
+    # Collect all annotator names for the filter dropdown (admin only)
+    all_annotator_names = sorted({name for p in posts_list for name in p.get("assigned_names", [])}) if is_admin else []
+
+    # Apply annotator filter (admin only)
+    if is_admin and annotator_filter:
+        posts_list = [p for p in posts_list if annotator_filter in p.get("assigned_names", [])]
+
     if is_admin:
         # Admin: dev first, then by most comments descending
         split_order = {"dev": 0, "test": 1}
@@ -169,6 +177,8 @@ def dashboard():
         "dashboard.html",
         posts=posts_list,
         search=search,
+        annotator_filter=annotator_filter,
+        all_annotator_names=all_annotator_names,
         username=session.get("username"),
         is_admin=is_admin,
         total_comments=total_comments,
