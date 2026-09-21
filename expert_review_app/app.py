@@ -97,6 +97,7 @@ def dashboard():
     search = request.args.get("search", "").strip()
     annotator_filter = request.args.get("annotator", "").strip()
     split_filter = request.args.get("split", "").strip()
+    subreddit_filter = request.args.get("subreddit", "").strip()
     model_name = "comment_annotations"
     is_admin = expert.username == "admin"
 
@@ -154,22 +155,27 @@ def dashboard():
             "assigned_names": assigned_names,
             "link": post["link"],
             "split": post.get("split", ""),
+            "subreddit": post.get("subreddit", ""),
         })
 
     # Collect all filter options from the full list (admin only)
     all_annotator_names = sorted({name for p in posts_list for name in p.get("assigned_names", [])}) if is_admin else []
     all_splits = sorted({p["split"] for p in posts_list if p.get("split")}) if is_admin else []
+    all_subreddits = sorted({p["subreddit"] for p in posts_list if p.get("subreddit")}) if is_admin else []
 
     # Apply filters (admin only)
+    if is_admin and subreddit_filter:
+        posts_list = [p for p in posts_list if p.get("subreddit") == subreddit_filter]
     if is_admin and split_filter:
         posts_list = [p for p in posts_list if p.get("split") == split_filter]
     if is_admin and annotator_filter:
         posts_list = [p for p in posts_list if annotator_filter in p.get("assigned_names", [])]
 
     if is_admin:
-        # Admin: dev first, then by most comments descending
+        # Admin: suboxone before methadone, dev before test, then by most comments
+        sub_order = {"r/suboxone": 0, "r/methadone": 1}
         split_order = {"dev": 0, "test": 1}
-        posts_list.sort(key=lambda p: (split_order.get(p["split"], 2), -p["num_comments"]))
+        posts_list.sort(key=lambda p: (sub_order.get(p.get("subreddit"), 2), split_order.get(p["split"], 2), -p["num_comments"]))
     else:
         # Expert: most comments first
         posts_list.sort(key=lambda p: -p["num_comments"])
@@ -183,8 +189,10 @@ def dashboard():
         search=search,
         annotator_filter=annotator_filter,
         split_filter=split_filter,
+        subreddit_filter=subreddit_filter,
         all_annotator_names=all_annotator_names,
         all_splits=all_splits,
+        all_subreddits=all_subreddits,
         username=session.get("username"),
         is_admin=is_admin,
         total_comments=total_comments,
@@ -508,6 +516,7 @@ def admin():
             post_meta[pid] = {
                 "themes": post["class_label"],
                 "num_comments": len(post["advice"]),
+                "subreddit": post.get("subreddit", ""),
             }
 
     # Per-expert stats: total comments assigned, total words, annotations count

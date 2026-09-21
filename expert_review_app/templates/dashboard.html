@@ -10,6 +10,14 @@
         <form method="GET" class="row g-2 justify-content-end">
             {% if is_admin %}
             <div class="col-auto">
+                <select name="subreddit" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Subreddits</option>
+                    {% for s in all_subreddits %}
+                    <option value="{{ s }}" {% if subreddit_filter == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
                 <select name="split" class="form-select form-select-sm" onchange="this.form.submit()">
                     <option value="">All Splits</option>
                     {% for s in all_splits %}
@@ -83,6 +91,7 @@
                 <th>Post ID</th>
                 <th>Title</th>
                 <th>Themes</th>
+                {% if is_admin %}<th>Subreddit</th>{% endif %}
                 {% if is_admin %}<th>Split</th>{% endif %}
                 <th>Comments</th>
                 <th>Annotated</th>
@@ -97,7 +106,8 @@
                 <td><code>{{ p.post_id }}</code></td>
                 <td>{{ p.title[:80] }}{% if p.title|length > 80 %}...{% endif %}</td>
                 <td><span class="badge bg-secondary">{{ p.class_label }}</span></td>
-                {% if is_admin %}<td><span class="badge bg-{{ 'primary' if p.split == 'dev' else 'warning text-dark' }}">{{ p.split }}</span></td>{% endif %}
+                {% if is_admin %}<td><span class="badge bg-{{ 'success' if p.subreddit == 'r/suboxone' else 'danger' }}">{{ p.subreddit }}</span></td>{% endif %}
+                {% if is_admin %}<td>{% if p.split %}<span class="badge bg-{{ 'primary' if p.split == 'dev' else 'warning text-dark' }}">{{ p.split }}</span>{% else %}--{% endif %}</td>{% endif %}
                 <td>{{ p.num_comments }}</td>
                 <td>
                     <span class="badge bg-{{ 'success' if p.annotated_comments == p.num_comments else ('warning text-dark' if p.annotated_comments > 0 else 'info') }}">{{ p.annotated_comments }}/{{ p.num_comments }}</span>

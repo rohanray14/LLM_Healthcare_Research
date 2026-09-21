@@ -89,6 +89,7 @@
                 {% set meta = post_meta.get(pid, {}) %}
                 <label class="form-check-label small" for="chk-{{ expert.id }}-{{ loop.index }}">
                     <span class="text-muted">#{{ loop.index }}</span> {{ pid }}
+                    <span class="badge bg-{{ 'success' if meta.get('subreddit') == 'r/suboxone' else 'danger' }} ms-1" style="font-size:0.65rem;">{{ meta.get('subreddit', '') }}</span>
                     <span class="text-muted ms-1">({{ meta.get('num_comments', '?') }} comments)</span>
                     <span class="badge bg-light text-dark ms-1" style="font-size:0.7rem;">{{ meta.get('themes', '') }}</span>
                     {% for o in other_owners %}<span class="badge bg-info text-dark ms-1">{{ o }}</span>{% endfor %}

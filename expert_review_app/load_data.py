@@ -129,41 +129,53 @@ def _compute_gt_spans(comment_body, span_if_claim):
     return gt_spans
 
 
-def _build_posts_and_comments(grouped, split_name):
+def _build_posts_and_comments(grouped, split_name, subreddit="r/suboxone"):
     """Convert grouped CSV data into posts and comment dicts."""
     posts = {}
     comments = {}
 
-    # Semantic markers that qualify a comment for expert review
+    # Semantic markers that qualify a comment for expert review (suboxone only)
     REQUIRED_MARKERS = {"CLAIM", "HEDGE", "HEDGED", "EXPER"}
 
     for pid, info in grouped.items():
         advice_items = []
         for c in info["comments"]:
-            # Filter: only include comments with at least one required marker
-            codes = {t.strip().upper() for t in c["l1_coding"].split(",") if t.strip()}
-            if not codes & REQUIRED_MARKERS:
-                continue
+            if subreddit == "r/suboxone":
+                # Filter: only include comments with at least one required marker
+                codes = {t.strip().upper() for t in c["l1_coding"].split(",") if t.strip()}
+                if not codes & REQUIRED_MARKERS:
+                    continue
 
-            gt_spans = _compute_gt_spans(c["comment_body"], c["span_if_claim"])
-            advice_items.append({
-                "advice": c["comment_body"],
-                "comment_id": c["comment_id"],
-                "agreement": c["l1_coding"],
-                "support": [s.strip() for s in c["span_if_claim"].split(",") if s.strip()] if c["span_if_claim"] else [],
-                "counterpoints": [c["nikil_notes"]] if c["nikil_notes"] else [],
-                "gt_spans": gt_spans,
-            })
+                gt_spans = _compute_gt_spans(c["comment_body"], c["span_if_claim"])
+                advice_items.append({
+                    "advice": c["comment_body"],
+                    "comment_id": c["comment_id"],
+                    "agreement": c["l1_coding"],
+                    "support": [s.strip() for s in c["span_if_claim"].split(",") if s.strip()] if c["span_if_claim"] else [],
+                    "counterpoints": [c["nikil_notes"]] if c["nikil_notes"] else [],
+                    "gt_spans": gt_spans,
+                })
+            else:
+                # r/methadone: include all comments, no l1_coding filtering
+                advice_items.append({
+                    "advice": c["comment_body"],
+                    "comment_id": c["comment_id"],
+                    "agreement": "",
+                    "support": [],
+                    "counterpoints": [],
+                    "gt_spans": [],
+                })
 
         if not advice_items:
             continue  # skip posts with no qualifying comments
 
+        sub_name = "methadone" if subreddit == "r/methadone" else "suboxone"
         key = (pid, MODEL_NAME)
         posts[key] = {
             "class_label": info["themes"],
             "post_id": pid,
             "title": info["title"],
-            "link": f"https://www.reddit.com/r/suboxone/comments/{pid}/",
+            "link": f"https://www.reddit.com/r/{sub_name}/comments/{pid}/",
             "model_family": "sample",
             "model_name": MODEL_NAME,
             "summary": info["body"],
@@ -172,6 +184,7 @@ def _build_posts_and_comments(grouped, split_name):
             "clinical_notes": [],
             "data_quality": "",
             "split": split_name,
+            "subreddit": subreddit,
         }
 
         comments[pid] = {
@@ -188,16 +201,29 @@ def _build_posts_and_comments(grouped, split_name):
 
 
 def load_all():
-    """Load dev and test CSVs. Returns (post_ids, posts, comments, models)."""
+    """Load dev, test, and meth CSVs. Returns (post_ids, posts, comments, models)."""
     posts = {}
     comments = {}
 
+    # Load r/suboxone splits
     for csv_name, split in [("train.csv", "train"), ("dev.csv", "dev"), ("test.csv", "test")]:
         path = BASE / csv_name
         if not path.exists():
             continue
         grouped = _load_csv(path)
-        p, c = _build_posts_and_comments(grouped, split)
+        p, c = _build_posts_and_comments(grouped, split, subreddit="r/suboxone")
+        for key, val in p.items():
+            if key not in posts:
+                posts[key] = val
+        for pid, cdata in c.items():
+            if pid not in comments:
+                comments[pid] = cdata
+
+    # Load r/methadone (no split)
+    meth_path = BASE / "meth.csv"
+    if meth_path.exists():
+        grouped = _load_csv(meth_path)
+        p, c = _build_posts_and_comments(grouped, "", subreddit="r/methadone")
         for key, val in p.items():
             if key not in posts:
                 posts[key] = val
