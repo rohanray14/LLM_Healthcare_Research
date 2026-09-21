@@ -113,6 +113,32 @@ def dashboard():
                 is_admin=False,
             )
 
+    # Batch DB queries (instead of per-post queries)
+    if is_admin:
+        # Count distinct annotated comments per post (all experts)
+        annot_counts = dict(
+            db.session.query(TextAnnotation.post_id, db.func.count(db.func.distinct(TextAnnotation.item_index)))
+            .filter_by(model_name=model_name).group_by(TextAnnotation.post_id).all()
+        )
+        # Assigned expert names per post
+        assigned_rows = db.session.query(Assignment.post_id, Expert.username) \
+            .join(Expert, Expert.id == Assignment.expert_id).all()
+        assigned_map = {}
+        for pid_r, uname in assigned_rows:
+            assigned_map.setdefault(pid_r, set()).add(uname)
+        # Experts who have actually annotated each post
+        coded_rows = db.session.query(TextAnnotation.post_id, Expert.username) \
+            .join(Expert, Expert.id == TextAnnotation.expert_id) \
+            .filter(TextAnnotation.model_name == model_name).distinct().all()
+        coded_map = {}
+        for pid_r, uname in coded_rows:
+            coded_map.setdefault(pid_r, set()).add(uname)
+    else:
+        annot_counts = dict(
+            db.session.query(TextAnnotation.post_id, db.func.count(db.func.distinct(TextAnnotation.item_index)))
+            .filter_by(expert_id=expert.id, model_name=model_name).group_by(TextAnnotation.post_id).all()
+        )
+
     # Build post list
     posts_list = []
     for pid in POST_IDS:
@@ -127,23 +153,10 @@ def dashboard():
         if search and search.lower() not in (post["title"] or "").lower() and search.lower() not in pid.lower():
             continue
 
+        annotated_comments = annot_counts.get(pid, 0)
         if is_admin:
-            # Count distinct comments annotated across all experts
-            annotated_comments = db.session.query(
-                db.func.count(db.func.distinct(TextAnnotation.item_index))
-            ).filter_by(post_id=pid, model_name=model_name).scalar() or 0
-            # Get annotator names for this post
-            assigned_set = {r.username for r in db.session.query(Expert.username)
-                            .join(Assignment, Expert.id == Assignment.expert_id)
-                            .filter(Assignment.post_id == pid).all()}
-            coded_set = {r.username for r in db.session.query(Expert.username)
-                         .join(TextAnnotation, Expert.id == TextAnnotation.expert_id)
-                         .filter(TextAnnotation.post_id == pid, TextAnnotation.model_name == model_name).distinct().all()}
-            assigned_names = sorted(assigned_set | coded_set)
+            assigned_names = sorted(assigned_map.get(pid, set()) | coded_map.get(pid, set()))
         else:
-            annotated_comments = db.session.query(
-                db.func.count(db.func.distinct(TextAnnotation.item_index))
-            ).filter_by(expert_id=expert.id, post_id=pid, model_name=model_name).scalar() or 0
             assigned_names = []
 
         posts_list.append({
