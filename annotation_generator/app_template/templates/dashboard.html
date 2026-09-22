@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Dashboard - {{ app_config.app_name }}{% endblock %}
+{% block title %}Dashboard - {{ project.name }}{% endblock %}
 {% block content %}
 
 <div class="row mb-3 align-items-end">
     <div class="col-md-6">
-        <h5>{% if is_admin %}All Posts (Admin View){% else %}Posts to Annotate{% endif %}</h5>
+        <h5>{% if is_admin %}All Posts (Admin View)
+            <a href="{{ url_for('project_admin', slug=project.slug) }}" class="btn btn-sm btn-outline-warning ms-2">Admin Panel</a>
+        {% else %}Posts to Annotate{% endif %}</h5>
     </div>
     <div class="col-md-6">
         <form method="GET" class="row g-2 justify-content-end">
@@ -22,7 +24,7 @@
                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Search title/ID..." value="{{ search }}">
             </div>
             <div class="col-auto">
-                <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                <a href="{{ url_for('project_dashboard', slug=project.slug) }}" class="btn btn-sm btn-outline-secondary">Reset</a>
             </div>
         </form>
     </div>
@@ -92,9 +94,9 @@
                 {% endif %}
                 <td>
                     {% if is_admin %}
-                    <a href="{{ url_for('admin_review', post_id=p.post_id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                    <a href="{{ url_for('admin_review', slug=project.slug, post_id=p.post_id) }}" class="btn btn-sm btn-outline-primary">View</a>
                     {% else %}
-                    <a href="{{ url_for('review', post_id=p.post_id) }}" class="btn btn-sm btn-outline-primary">Annotate</a>
+                    <a href="{{ url_for('review', slug=project.slug, post_id=p.post_id) }}" class="btn btn-sm btn-outline-primary">Annotate</a>
                     {% endif %}
                 </td>
             </tr>

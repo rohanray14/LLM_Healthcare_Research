@@ -9,13 +9,17 @@
 </head>
 <body>
     <nav class="navbar navbar-dark bg-dark px-3">
-        <a class="navbar-brand" href="{{ url_for('dashboard') }}">{{ app_config.app_name }}</a>
-        {% if username %}
+        {% if project is defined and project %}
+        <a class="navbar-brand" href="{{ url_for('project_dashboard', slug=project.slug) }}">{{ project.name }}</a>
+        {% else %}
+        <a class="navbar-brand" href="{{ url_for('home') }}">Annotation Tool</a>
+        {% endif %}
+        {% if current_user %}
         <div class="d-flex align-items-center gap-3">
-            <span class="text-light">{{ username }}</span>
-            {% if username == 'admin' %}
-            <a href="{{ url_for('admin') }}" class="btn btn-sm btn-outline-warning">Admin</a>
+            {% if project is defined and project %}
+            <a href="{{ url_for('home') }}" class="btn btn-sm btn-outline-light">My Projects</a>
             {% endif %}
+            <span class="text-light">{{ current_user.username }}</span>
             <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light">Logout</a>
         </div>
         {% endif %}

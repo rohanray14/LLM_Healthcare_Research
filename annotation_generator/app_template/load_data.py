@@ -4,18 +4,13 @@ from pathlib import Path
 from collections import OrderedDict
 
 BASE = Path(__file__).resolve().parent
-CONFIG_PATH = BASE / "config.json"
 MODEL_NAME = "comment_annotations"
 
-
-def _get_config():
-    if not CONFIG_PATH.exists():
-        return None
-    return json.loads(CONFIG_PATH.read_text())
+# In-memory cache: {project_slug: (post_ids, posts, comments)}
+_cache = {}
 
 
 def _load_csv(path, cols):
-    """Load a CSV and group rows by post_id using config-driven column names."""
     grouped = OrderedDict()
     col_pid = cols["post_id"]
     col_title = cols.get("post_title", "")
@@ -48,7 +43,6 @@ def _load_csv(path, cols):
 
 
 def _build_posts(grouped, config):
-    """Convert grouped CSV data into posts and comment dicts."""
     posts = {}
     comments = {}
     link_tpl = config.get("link_template", "")
@@ -92,16 +86,15 @@ def _build_posts(grouped, config):
     return posts, comments
 
 
-def load_all():
-    """Load data CSV. Returns (post_ids, posts, comments, models)."""
-    config = _get_config()
-    if not config:
-        return [], {}, {}, [MODEL_NAME]
+def load_project(slug, config):
+    """Load data for a project. Uses cache."""
+    if slug in _cache:
+        return _cache[slug]
 
     data_file = config.get("data_file", "data.csv")
-    path = BASE / "data" / data_file
+    path = BASE / "data" / slug / data_file
     if not path.exists():
-        return [], {}, {}, [MODEL_NAME]
+        return [], {}, {}
 
     grouped = _load_csv(path, config["columns"])
     posts, comments = _build_posts(grouped, config)
@@ -113,4 +106,12 @@ def load_all():
             seen.add(pid)
             post_ids.append(pid)
 
-    return post_ids, posts, comments, [MODEL_NAME]
+    _cache[slug] = (post_ids, posts, comments)
+    return post_ids, posts, comments
+
+
+def clear_cache(slug=None):
+    if slug:
+        _cache.pop(slug, None)
+    else:
+        _cache.clear()

@@ -5,14 +5,14 @@
 <!-- Nav -->
 <div class="d-flex justify-content-between mb-3">
     {% if prev_id %}
-    <a href="{{ url_for('review', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>
+    <a href="{{ url_for('review', slug=project.slug, post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>
     {% else %}<span></span>{% endif %}
     <div class="d-flex align-items-center gap-2">
-        <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
+        <a href="{{ url_for('project_dashboard', slug=project.slug) }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
         <span id="saveStatus"><small class="text-muted">Ready</small></span>
     </div>
     {% if next_id %}
-    <a href="{{ url_for('review', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
+    <a href="{{ url_for('review', slug=project.slug, post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>
     {% else %}<span></span>{% endif %}
 </div>
 
@@ -40,9 +40,9 @@
 
     <!-- RIGHT: Comments with annotation -->
     <div class="col-lg-8">
-        {% if app_config.instructions %}
+        {% if config.get('instructions') %}
         <div class="alert alert-info py-2 mb-3" style="font-size:0.88rem;">
-            {{ app_config.instructions | safe }}
+            {{ config.instructions | safe }}
         </div>
         {% endif %}
 
@@ -148,6 +148,7 @@
 <script>
 const POST_ID = "{{ post.post_id }}";
 const MODEL = "{{ current_model }}";
+const SLUG = "{{ project.slug }}";
 const statusEl = document.getElementById('saveStatus');
 let existingAnnotations = {{ existing_annotations | tojson }};
 
@@ -206,7 +207,7 @@ function renderClinicalHighlights() {
     document.querySelectorAll('.delete-annot').forEach(btn => {
         btn.addEventListener('click', function() {
             const id = this.dataset.id;
-            fetch(`/api/annotation/${id}/delete`, { method: 'POST' }).then(r => r.json()).then(d => {
+            fetch(`/p/${SLUG}/api/annotation/${id}/delete`, { method: 'POST' }).then(r => r.json()).then(d => {
                 if (d.ok) { existingAnnotations = existingAnnotations.filter(a => a.id != id); renderClinicalHighlights(); }
             });
         });
@@ -315,7 +316,7 @@ document.getElementById('saveClinAnnotBtn').addEventListener('click', function()
     if (['1','2','unsure'].includes(harmVerdict) && !harmReasoning.trim()) { alert('Please explain your harm reasoning.'); document.getElementById('harmReasoning').focus(); return; }
 
     const saveNew = () => {
-        fetch(`/api/annotation/${POST_ID}/save`, {
+        fetch(`/p/${SLUG}/api/annotation/${POST_ID}/save`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model_name: MODEL, section: pendingClinAnnot.section, item_index: pendingClinAnnot.index,
                 start: pendingClinAnnot.start, end: pendingClinAnnot.end, text: pendingClinAnnot.text,
@@ -334,7 +335,7 @@ document.getElementById('saveClinAnnotBtn').addEventListener('click', function()
         });
     };
     if (pendingClinAnnot.existing_id) {
-        fetch(`/api/annotation/${pendingClinAnnot.existing_id}/delete`, { method: 'POST' }).then(r => r.json()).then(() => {
+        fetch(`/p/${SLUG}/api/annotation/${pendingClinAnnot.existing_id}/delete`, { method: 'POST' }).then(r => r.json()).then(() => {
             existingAnnotations = existingAnnotations.filter(a => a.id != pendingClinAnnot.existing_id); saveNew();
         });
     } else { saveNew(); }

@@ -1,67 +1,80 @@
 {% extends "base.html" %}
-{% block title %}Admin - {{ app_config.app_name }}{% endblock %}
+{% block title %}Admin - {{ project.name }}{% endblock %}
 {% block content %}
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="mb-0">Admin Panel</h4>
+    <h4 class="mb-0">Admin Panel — {{ project.name }}</h4>
     <div class="d-flex gap-2">
-        <a href="{{ url_for('admin_db') }}" class="btn btn-sm btn-outline-dark">View Database</a>
-        <a href="{{ url_for('admin_export_csv') }}" class="btn btn-sm btn-outline-success">Export Annotations CSV</a>
+        <a href="{{ url_for('project_dashboard', slug=project.slug) }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
+        <a href="{{ url_for('admin_db', slug=project.slug) }}" class="btn btn-sm btn-outline-dark">View Database</a>
+        <a href="{{ url_for('admin_export_csv', slug=project.slug) }}" class="btn btn-sm btn-outline-success">Export Annotations CSV</a>
     </div>
 </div>
 
-<!-- Add Expert -->
+<!-- Invite Link -->
 <div class="card mb-4">
-    <div class="card-header"><h6 class="mb-0">Add New Expert</h6></div>
+    <div class="card-header"><h6 class="mb-0">Invite Annotators</h6></div>
+    <div class="card-body">
+        <p class="text-muted small mb-2">Share this link with annotators. They'll create an account (or login) and automatically join your project.</p>
+        <div class="input-group" style="max-width:600px;">
+            <input type="text" id="inviteLink" class="form-control form-control-sm" readonly
+                   value="{{ request.host_url.rstrip('/') }}{{ url_for('join_project', slug=project.slug) }}">
+            <button class="btn btn-sm btn-outline-primary" onclick="navigator.clipboard.writeText(document.getElementById('inviteLink').value); this.textContent='Copied!'; setTimeout(()=>this.textContent='Copy',2000);">Copy</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Annotator -->
+<div class="card mb-4">
+    <div class="card-header"><h6 class="mb-0">Add Annotator Manually</h6></div>
     <div class="card-body">
         <div class="row g-2 align-items-end">
             <div class="col-auto"><label class="form-label">Username</label><input type="text" id="newUsername" class="form-control form-control-sm"></div>
             <div class="col-auto"><label class="form-label">Password</label><input type="password" id="newPassword" class="form-control form-control-sm"></div>
-            <div class="col-auto"><button class="btn btn-sm btn-primary" id="addExpertBtn">Add Expert</button></div>
+            <div class="col-auto"><button class="btn btn-sm btn-primary" id="addAnnotatorBtn">Add</button></div>
             <div class="col-auto"><span id="addStatus"></span></div>
         </div>
+        <small class="text-muted">If the user already exists, they'll be added to this project. Otherwise a new account is created.</small>
     </div>
 </div>
 
-<!-- Expert Assignments -->
-{% for expert in experts %}
-{% if expert.username != 'admin' %}
+<!-- Annotator Assignments -->
+{% for a in annotators %}
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <div>
-            <h6 class="mb-0 d-inline">{{ expert.username }}</h6>
-            <small class="text-muted ms-2">pw: <code>{{ expert.password_plain or '(unknown)' }}</code></small>
+            <h6 class="mb-0 d-inline">{{ a.user.username }}</h6>
         </div>
         <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-info">{{ assignments.get(expert.id, [])|length }} posts</span>
-            {% set stats = expert_stats.get(expert.id, {}) %}
+            <span class="badge bg-info">{{ assignments.get(a.user.id, [])|length }} posts</span>
+            {% set stats = annotator_stats.get(a.user.id, {}) %}
             <span class="badge bg-success">{{ stats.get('annotated_comments', 0) }}/{{ stats.get('total_comments', 0) }} annotated</span>
             {% set pct = (stats.get('annotated_comments', 0) / stats.get('total_comments', 1) * 100) if stats.get('total_comments', 0) > 0 else 0 %}
             <span class="badge bg-{{ 'success' if pct == 100 else 'warning text-dark' if pct > 0 else 'secondary' }}">{{ '%.0f' | format(pct) }}%</span>
-            <button class="btn btn-sm btn-success save-assignments-btn" data-expert-id="{{ expert.id }}">Save</button>
-            <button class="btn btn-sm btn-outline-danger delete-expert-btn" data-expert-id="{{ expert.id }}" data-expert-name="{{ expert.username }}">Delete</button>
-            <span class="assign-status" data-expert-id="{{ expert.id }}"></span>
+            <button class="btn btn-sm btn-success save-assignments-btn" data-user-id="{{ a.user.id }}">Save</button>
+            <button class="btn btn-sm btn-outline-danger delete-annotator-btn" data-user-id="{{ a.user.id }}" data-username="{{ a.user.username }}">Remove</button>
+            <span class="assign-status" data-user-id="{{ a.user.id }}"></span>
         </div>
     </div>
     <div class="card-body">
         <div class="row g-2 mb-2">
-            <div class="col-auto"><input type="text" class="form-control form-control-sm post-search" data-expert-id="{{ expert.id }}" placeholder="Search posts..."></div>
-            <div class="col-auto"><button class="btn btn-sm btn-outline-primary select-all-btn" data-expert-id="{{ expert.id }}">Select All Visible</button></div>
-            <div class="col-auto"><button class="btn btn-sm btn-outline-secondary clear-all-btn" data-expert-id="{{ expert.id }}">Clear All</button></div>
+            <div class="col-auto"><input type="text" class="form-control form-control-sm post-search" data-user-id="{{ a.user.id }}" placeholder="Search posts..."></div>
+            <div class="col-auto"><button class="btn btn-sm btn-outline-primary select-all-btn" data-user-id="{{ a.user.id }}">Select All Visible</button></div>
+            <div class="col-auto"><button class="btn btn-sm btn-outline-secondary clear-all-btn" data-user-id="{{ a.user.id }}">Clear All</button></div>
             <div class="col-auto"><label class="form-label mb-0 small text-muted mt-1">Range:</label></div>
-            <div class="col-auto"><input type="number" class="form-control form-control-sm range-from" data-expert-id="{{ expert.id }}" placeholder="From #" style="width:80px;"></div>
-            <div class="col-auto"><input type="number" class="form-control form-control-sm range-to" data-expert-id="{{ expert.id }}" placeholder="To #" style="width:80px;"></div>
-            <div class="col-auto"><button class="btn btn-sm btn-outline-primary select-range-btn" data-expert-id="{{ expert.id }}">Select Range</button></div>
+            <div class="col-auto"><input type="number" class="form-control form-control-sm range-from" data-user-id="{{ a.user.id }}" placeholder="From #" style="width:80px;"></div>
+            <div class="col-auto"><input type="number" class="form-control form-control-sm range-to" data-user-id="{{ a.user.id }}" placeholder="To #" style="width:80px;"></div>
+            <div class="col-auto"><button class="btn btn-sm btn-outline-primary select-range-btn" data-user-id="{{ a.user.id }}">Select Range</button></div>
         </div>
-        <div class="post-checklist border rounded p-2" data-expert-id="{{ expert.id }}" style="max-height:300px;overflow-y:auto;">
+        <div class="post-checklist border rounded p-2" data-user-id="{{ a.user.id }}" style="max-height:300px;overflow-y:auto;">
             {% for pid in all_post_ids %}
             {% set owners = taken_by.get(pid, []) %}
-            {% set other_owners = owners | reject('equalto', expert.username) | list %}
-            {% set is_mine = pid in assignments.get(expert.id, []) %}
+            {% set other_owners = owners | reject('equalto', a.user.username) | list %}
+            {% set is_mine = pid in assignments.get(a.user.id, []) %}
             <div class="form-check post-check-item" data-post-id="{{ pid }}">
-                <input class="form-check-input post-checkbox" type="checkbox" value="{{ pid }}" id="chk-{{ expert.id }}-{{ loop.index }}" {% if is_mine %}checked{% endif %}>
+                <input class="form-check-input post-checkbox" type="checkbox" value="{{ pid }}" id="chk-{{ a.user.id }}-{{ loop.index }}" {% if is_mine %}checked{% endif %}>
                 {% set meta = post_meta.get(pid, {}) %}
-                <label class="form-check-label small" for="chk-{{ expert.id }}-{{ loop.index }}">
+                <label class="form-check-label small" for="chk-{{ a.user.id }}-{{ loop.index }}">
                     <span class="text-muted">#{{ loop.index }}</span> {{ pid }}
                     <span class="text-muted ms-1">({{ meta.get('num_comments', '?') }} comments)</span>
                     {% if meta.get('themes') %}<span class="badge bg-light text-dark ms-1" style="font-size:0.7rem;">{{ meta.get('themes', '') }}</span>{% endif %}
@@ -72,50 +85,56 @@
         </div>
     </div>
 </div>
-{% endif %}
 {% endfor %}
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-document.getElementById('addExpertBtn').addEventListener('click', function() {
+const SLUG = "{{ project.slug }}";
+
+document.getElementById('addAnnotatorBtn').addEventListener('click', function() {
     const username = document.getElementById('newUsername').value.trim();
     const password = document.getElementById('newPassword').value.trim();
     const status = document.getElementById('addStatus');
     if (!username || !password) { status.innerHTML = '<small class="text-danger">Fill both fields</small>'; return; }
-    fetch('/admin/add_expert', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
+    fetch(`/p/${SLUG}/admin/add_annotator`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
     .then(r => r.json()).then(d => { if (d.ok) { status.innerHTML = '<small class="text-success">Added!</small>'; setTimeout(() => location.reload(), 1000); } else { status.innerHTML = `<small class="text-danger">${d.error}</small>`; } });
 });
+
 document.querySelectorAll('.post-search').forEach(input => {
     input.addEventListener('input', function() {
-        const id = this.dataset.expertId, q = this.value.toLowerCase();
-        document.querySelector(`.post-checklist[data-expert-id="${id}"]`).querySelectorAll('.post-check-item').forEach(item => { item.style.display = item.dataset.postId.toLowerCase().includes(q) ? '' : 'none'; });
+        const id = this.dataset.userId, q = this.value.toLowerCase();
+        document.querySelector(`.post-checklist[data-user-id="${id}"]`).querySelectorAll('.post-check-item').forEach(item => { item.style.display = item.dataset.postId.toLowerCase().includes(q) ? '' : 'none'; });
     });
 });
-document.querySelectorAll('.select-all-btn').forEach(btn => { btn.addEventListener('click', function() { document.querySelector(`.post-checklist[data-expert-id="${this.dataset.expertId}"]`).querySelectorAll('.post-check-item').forEach(item => { if (item.style.display !== 'none') item.querySelector('.post-checkbox').checked = true; }); }); });
-document.querySelectorAll('.clear-all-btn').forEach(btn => { btn.addEventListener('click', function() { document.querySelector(`.post-checklist[data-expert-id="${this.dataset.expertId}"]`).querySelectorAll('.post-checkbox').forEach(cb => cb.checked = false); }); });
+
+document.querySelectorAll('.select-all-btn').forEach(btn => { btn.addEventListener('click', function() { document.querySelector(`.post-checklist[data-user-id="${this.dataset.userId}"]`).querySelectorAll('.post-check-item').forEach(item => { if (item.style.display !== 'none') item.querySelector('.post-checkbox').checked = true; }); }); });
+document.querySelectorAll('.clear-all-btn').forEach(btn => { btn.addEventListener('click', function() { document.querySelector(`.post-checklist[data-user-id="${this.dataset.userId}"]`).querySelectorAll('.post-checkbox').forEach(cb => cb.checked = false); }); });
+
 document.querySelectorAll('.select-range-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-        const id = this.dataset.expertId;
-        const from = parseInt(document.querySelector(`.range-from[data-expert-id="${id}"]`).value) || 1;
-        const to = parseInt(document.querySelector(`.range-to[data-expert-id="${id}"]`).value) || from;
-        document.querySelector(`.post-checklist[data-expert-id="${id}"]`).querySelectorAll('.post-check-item').forEach((item, i) => { if (i+1 >= from && i+1 <= to) item.querySelector('.post-checkbox').checked = true; });
+        const id = this.dataset.userId;
+        const from = parseInt(document.querySelector(`.range-from[data-user-id="${id}"]`).value) || 1;
+        const to = parseInt(document.querySelector(`.range-to[data-user-id="${id}"]`).value) || from;
+        document.querySelector(`.post-checklist[data-user-id="${id}"]`).querySelectorAll('.post-check-item').forEach((item, i) => { if (i+1 >= from && i+1 <= to) item.querySelector('.post-checkbox').checked = true; });
     });
 });
-document.querySelectorAll('.delete-expert-btn').forEach(btn => {
+
+document.querySelectorAll('.delete-annotator-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-        if (!confirm(`Delete "${this.dataset.expertName}"? This removes all their data.`)) return;
-        fetch('/admin/delete_expert', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expert_id: parseInt(this.dataset.expertId) }) })
+        if (!confirm(`Remove "${this.dataset.username}" from this project? This removes all their annotations for this project.`)) return;
+        fetch(`/p/${SLUG}/admin/remove_annotator`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: parseInt(this.dataset.userId) }) })
         .then(r => r.json()).then(d => { if (d.ok) location.reload(); else alert(d.error); }).catch(err => alert('Failed: ' + err.message));
     });
 });
+
 document.querySelectorAll('.save-assignments-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-        const id = this.dataset.expertId;
-        const postIds = Array.from(document.querySelector(`.post-checklist[data-expert-id="${id}"]`).querySelectorAll('.post-checkbox:checked')).map(cb => cb.value);
-        const status = document.querySelector(`.assign-status[data-expert-id="${id}"]`);
-        fetch('/admin/assign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expert_id: parseInt(id), post_ids: postIds }) })
+        const id = this.dataset.userId;
+        const postIds = Array.from(document.querySelector(`.post-checklist[data-user-id="${id}"]`).querySelectorAll('.post-checkbox:checked')).map(cb => cb.value);
+        const status = document.querySelector(`.assign-status[data-user-id="${id}"]`);
+        fetch(`/p/${SLUG}/admin/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: parseInt(id), post_ids: postIds }) })
         .then(r => r.json()).then(d => { if (d.ok) status.innerHTML = `<small class="text-success">Saved ${postIds.length}</small>`; });
     });
 });

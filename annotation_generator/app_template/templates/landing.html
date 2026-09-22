@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Annotation Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .hero { min-height: 80vh; display: flex; align-items: center; }
+        .feature-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+    </style>
+</head>
+<body>
+    <div class="container hero">
+        <div class="row align-items-center w-100">
+            <div class="col-lg-6 text-white mb-4">
+                <h1 class="display-4 fw-bold mb-3">Annotation Tool</h1>
+                <p class="lead mb-4">Create annotation projects in minutes. Upload your dataset, invite your team, and start annotating — no coding required.</p>
+                <div class="d-flex gap-3">
+                    <a href="{{ url_for('register') }}" class="btn btn-light btn-lg px-4">Get Started</a>
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-light btn-lg px-4">Login</a>
+                </div>
+            </div>
+            <div class="col-lg-5 offset-lg-1">
+                <div class="card border-0 shadow-lg">
+                    <div class="card-body p-4">
+                        <h5 class="mb-4">How it works</h5>
+                        <div class="d-flex gap-3 mb-3">
+                            <div class="feature-icon bg-primary bg-opacity-10 text-primary flex-shrink-0">1</div>
+                            <div><strong>Upload your data</strong><br><small class="text-muted">CSV or Excel with posts and comments</small></div>
+                        </div>
+                        <div class="d-flex gap-3 mb-3">
+                            <div class="feature-icon bg-success bg-opacity-10 text-success flex-shrink-0">2</div>
+                            <div><strong>Map your columns</strong><br><small class="text-muted">We auto-detect post IDs, titles, comments</small></div>
+                        </div>
+                        <div class="d-flex gap-3 mb-3">
+                            <div class="feature-icon bg-warning bg-opacity-10 text-warning flex-shrink-0">3</div>
+                            <div><strong>Invite annotators</strong><br><small class="text-muted">Share a link or add them from admin panel</small></div>
+                        </div>
+                        <div class="d-flex gap-3">
+                            <div class="feature-icon bg-danger bg-opacity-10 text-danger flex-shrink-0">4</div>
+                            <div><strong>Annotate & export</strong><br><small class="text-muted">Highlight text, rate accuracy & harm, export CSV</small></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

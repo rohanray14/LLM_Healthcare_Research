@@ -3,13 +3,13 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0">Database Viewer</h4>
-    <a href="{{ url_for('admin') }}" class="btn btn-sm btn-outline-dark">Back to Admin</a>
+    <a href="{{ url_for('project_admin', slug=project.slug) }}" class="btn btn-sm btn-outline-dark">Back to Admin</a>
 </div>
 <div class="card mb-3">
     <div class="card-body py-2">
         <div class="d-flex flex-wrap gap-2">
             {% for t in tables %}
-            <a href="{{ url_for('admin_db', table=t) }}" class="btn btn-sm {{ 'btn-primary' if t == selected else 'btn-outline-secondary' }}">
+            <a href="{{ url_for('admin_db', slug=project.slug, table=t) }}" class="btn btn-sm {{ 'btn-primary' if t == selected else 'btn-outline-secondary' }}">
                 {{ t }} <span class="badge bg-{{ 'light text-dark' if t == selected else 'secondary' }} ms-1">{{ table_counts[t] }}</span>
             </a>
             {% endfor %}
@@ -22,8 +22,8 @@
         <h6 class="mb-0"><code>{{ selected }}</code> <span class="text-muted ms-2">{{ row_count }} rows</span></h6>
         {% if row_count > limit %}
         <div class="d-flex gap-1">
-            {% if offset > 0 %}<a href="{{ url_for('admin_db', table=selected, limit=limit, offset=[offset - limit, 0] | max) }}" class="btn btn-sm btn-outline-secondary">&larr;</a>{% endif %}
-            {% if offset + limit < row_count %}<a href="{{ url_for('admin_db', table=selected, limit=limit, offset=offset + limit) }}" class="btn btn-sm btn-outline-secondary">&rarr;</a>{% endif %}
+            {% if offset > 0 %}<a href="{{ url_for('admin_db', slug=project.slug, table=selected, limit=limit, offset=[offset - limit, 0] | max) }}" class="btn btn-sm btn-outline-secondary">&larr;</a>{% endif %}
+            {% if offset + limit < row_count %}<a href="{{ url_for('admin_db', slug=project.slug, table=selected, limit=limit, offset=offset + limit) }}" class="btn btn-sm btn-outline-secondary">&rarr;</a>{% endif %}
         </div>
         {% endif %}
     </div>

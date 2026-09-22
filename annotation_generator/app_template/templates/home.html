@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}My Projects{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">My Projects</h4>
+    <a href="{{ url_for('new_project') }}" class="btn btn-primary">+ New Project</a>
+</div>
+
+{% if not owned_projects and not member_projects %}
+<div class="text-center py-5">
+    <h5 class="text-muted mb-3">No projects yet</h5>
+    <p class="text-muted">Create your first annotation project by uploading a dataset.</p>
+    <a href="{{ url_for('new_project') }}" class="btn btn-primary btn-lg">Create Project</a>
+</div>
+{% endif %}
+
+{% if owned_projects %}
+<h6 class="text-muted mb-2">Projects I Created</h6>
+<div class="row g-3 mb-4">
+    {% for project in owned_projects %}
+    <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">{{ project.name }}</h5>
+                <p class="text-muted small mb-2">
+                    <code>/p/{{ project.slug }}/</code>
+                </p>
+                <span class="badge bg-primary">Owner</span>
+                <span class="badge bg-secondary">{{ project.members | length }} members</span>
+            </div>
+            <div class="card-footer bg-transparent border-0 d-flex gap-2">
+                <a href="{{ url_for('project_dashboard', slug=project.slug) }}" class="btn btn-sm btn-outline-primary">Dashboard</a>
+                <a href="{{ url_for('project_admin', slug=project.slug) }}" class="btn btn-sm btn-outline-warning">Admin</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if member_projects %}
+<h6 class="text-muted mb-2">Projects I'm Part Of</h6>
+<div class="row g-3">
+    {% for project in member_projects %}
+    <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">{{ project.name }}</h5>
+                <span class="badge bg-info">Annotator</span>
+            </div>
+            <div class="card-footer bg-transparent border-0">
+                <a href="{{ url_for('project_dashboard', slug=project.slug) }}" class="btn btn-sm btn-outline-primary">Dashboard</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

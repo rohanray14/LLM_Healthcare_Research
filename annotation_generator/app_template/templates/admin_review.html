@@ -3,9 +3,9 @@
 {% block content %}
 
 <div class="d-flex justify-content-between mb-3">
-    {% if prev_id %}<a href="{{ url_for('admin_review', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>{% else %}<span></span>{% endif %}
+    {% if prev_id %}<a href="{{ url_for('admin_review', slug=project.slug, post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>{% else %}<span></span>{% endif %}
     <div class="d-flex align-items-center gap-2">
-        <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
+        <a href="{{ url_for('project_dashboard', slug=project.slug) }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
         {% if expert_names %}
         <select id="expertFilter" class="form-select form-select-sm" style="width:auto;">
             <option value="all">All Annotators ({{ expert_names|length }})</option>
@@ -13,7 +13,7 @@
         </select>
         {% endif %}
     </div>
-    {% if next_id %}<a href="{{ url_for('admin_review', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>{% else %}<span></span>{% endif %}
+    {% if next_id %}<a href="{{ url_for('admin_review', slug=project.slug, post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>{% else %}<span></span>{% endif %}
 </div>
 
 <div class="card mb-3">

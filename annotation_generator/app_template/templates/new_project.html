@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Create New Project{% endblock %}
+{% block content %}
+
+<div class="container" style="max-width: 800px;">
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <a href="{{ url_for('home') }}" class="btn btn-sm btn-outline-secondary">Back</a>
+        <h4 class="mb-0">Create New Project</h4>
+    </div>
+
+    <!-- Step 1: Upload -->
+    <div class="step active" id="step1">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Step 1: Upload Your Dataset</h5></div>
+            <div class="card-body">
+                <p class="text-muted">Upload a CSV or Excel file. Each row = one comment. Columns should include a post ID, comment text, and optionally post title, body, comment ID, and themes.</p>
+                <div class="mb-3">
+                    <input type="file" id="dataFile" class="form-control" accept=".csv,.xlsx,.xls">
+                </div>
+                <button class="btn btn-primary" id="uploadBtn">Upload & Detect Columns</button>
+                <div id="uploadError" class="text-danger mt-2 d-none"></div>
+                <div id="uploadSpinner" class="d-none mt-2"><div class="spinner-border spinner-border-sm"></div> Reading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Configure -->
+    <div class="step" id="step2">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Step 2: Configure Your Project</h5></div>
+            <div class="card-body">
+                <p class="text-muted">Detected <span id="colCount" class="fw-bold"></span> columns. Map them below (* = required).</p>
+                <div id="detectedHeaders" class="mb-3"></div>
+                <div id="samplePreview" class="mb-3"></div>
+
+                <h6>Column Mapping</h6>
+                <div class="row g-3">
+                    <div class="col-md-6"><label class="form-label">Post ID *</label><select id="col_post_id" class="form-select form-select-sm col-select" required></select></div>
+                    <div class="col-md-6"><label class="form-label">Post Title</label><select id="col_post_title" class="form-select form-select-sm col-select"></select></div>
+                    <div class="col-md-6"><label class="form-label">Post Body</label><select id="col_post_body" class="form-select form-select-sm col-select"></select></div>
+                    <div class="col-md-6"><label class="form-label">Comment ID</label><select id="col_comment_id" class="form-select form-select-sm col-select"></select></div>
+                    <div class="col-md-6"><label class="form-label">Comment Body *</label><select id="col_comment_body" class="form-select form-select-sm col-select" required></select></div>
+                    <div class="col-md-6"><label class="form-label">Themes / Labels</label><select id="col_themes" class="form-select form-select-sm col-select"></select></div>
+                </div>
+
+                <h6 class="mt-4">Project Settings</h6>
+                <div class="row g-3">
+                    <div class="col-md-12"><label class="form-label">Project Name *</label><input type="text" id="app_name" class="form-control form-control-sm" placeholder="e.g. Suboxone Comment Review" required></div>
+                    <div class="col-12"><label class="form-label">Source Link Template <small class="text-muted">({post_id} placeholder)</small></label><input type="text" id="link_template" class="form-control form-control-sm" placeholder="https://example.com/posts/{post_id}"></div>
+                    <div class="col-12"><label class="form-label">Annotator Instructions <small class="text-muted">(HTML ok)</small></label><textarea id="instructions" class="form-control form-control-sm" rows="3" placeholder="Highlight statements to evaluate..."></textarea></div>
+                </div>
+
+                <div class="mt-4 d-flex gap-2">
+                    <button class="btn btn-outline-secondary" id="backBtn">Back</button>
+                    <button class="btn btn-success" id="createBtn">Create Project</button>
+                </div>
+                <div id="createSpinner" class="d-none mt-2"><div class="spinner-border spinner-border-sm"></div> Creating...</div>
+                <div id="createError" class="text-danger mt-2 d-none"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .step { display: none; }
+    .step.active { display: block; }
+    .header-chip { display: inline-block; padding: 4px 12px; margin: 3px; border-radius: 20px; background: #e9ecef; font-size: 0.85rem; }
+    .sample-table { font-size: 0.78rem; }
+    .sample-table td, .sample-table th { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showErr(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.classList.remove('d-none'); }
+
+function populateSelects(headers, auto) {
+    document.querySelectorAll('.col-select').forEach(sel => {
+        sel.innerHTML = '<option value="">(none)</option>';
+        headers.forEach(h => { const o = document.createElement('option'); o.value = h; o.textContent = h; sel.appendChild(o); });
+    });
+    if (auto.post_id) document.getElementById('col_post_id').value = auto.post_id;
+    if (auto.post_title) document.getElementById('col_post_title').value = auto.post_title;
+    if (auto.post_body) document.getElementById('col_post_body').value = auto.post_body;
+    if (auto.comment_id) document.getElementById('col_comment_id').value = auto.comment_id;
+    if (auto.comment_body) document.getElementById('col_comment_body').value = auto.comment_body;
+    if (auto.themes) document.getElementById('col_themes').value = auto.themes;
+}
+
+document.getElementById('uploadBtn').addEventListener('click', function() {
+    const file = document.getElementById('dataFile').files[0];
+    if (!file) { showErr('uploadError', 'Select a file.'); return; }
+    const fd = new FormData(); fd.append('datafile', file);
+    document.getElementById('uploadSpinner').classList.remove('d-none');
+    document.getElementById('uploadError').classList.add('d-none');
+    fetch('/new/preview', { method: 'POST', body: fd })
+    .then(r => r.json()).then(data => {
+        document.getElementById('uploadSpinner').classList.add('d-none');
+        if (data.error) { showErr('uploadError', data.error); return; }
+        document.getElementById('colCount').textContent = data.headers.length;
+        const hDiv = document.getElementById('detectedHeaders');
+        hDiv.innerHTML = '<small class="text-muted">Detected:</small><br>' + data.headers.map(h => `<span class="header-chip">${h}</span>`).join('');
+        if (data.sample.length) {
+            let html = '<div class="table-responsive mt-2"><table class="table table-sm table-bordered sample-table"><thead><tr>' +
+                data.headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>' +
+                data.sample.map(row => '<tr>' + data.headers.map(h => `<td title="${(row[h]||'').substring(0,200)}">${(row[h]||'').substring(0,50)}</td>`).join('') + '</tr>').join('') +
+                '</tbody></table></div>';
+            document.getElementById('samplePreview').innerHTML = html;
+        }
+        populateSelects(data.headers, data.auto_map);
+        document.getElementById('step1').classList.remove('active');
+        document.getElementById('step2').classList.add('active');
+    }).catch(err => { document.getElementById('uploadSpinner').classList.add('d-none'); showErr('uploadError', err.message); });
+});
+
+document.getElementById('backBtn').addEventListener('click', () => {
+    document.getElementById('step2').classList.remove('active');
+    document.getElementById('step1').classList.add('active');
+});
+
+document.getElementById('createBtn').addEventListener('click', function() {
+    const file = document.getElementById('dataFile').files[0];
+    if (!file) { showErr('createError', 'File missing — go back.'); return; }
+    if (!document.getElementById('col_post_id').value || !document.getElementById('col_comment_body').value) {
+        showErr('createError', 'Post ID and Comment Body are required.'); return;
+    }
+    if (!document.getElementById('app_name').value.trim()) {
+        showErr('createError', 'Project name is required.'); return;
+    }
+    const fd = new FormData();
+    fd.append('datafile', file);
+    ['app_name','link_template','instructions','col_post_id','col_post_title','col_post_body','col_comment_id','col_comment_body','col_themes'].forEach(id => {
+        fd.append(id, document.getElementById(id).value);
+    });
+    document.getElementById('createSpinner').classList.remove('d-none');
+    document.getElementById('createError').classList.add('d-none');
+    fetch('/new/create', { method: 'POST', body: fd })
+    .then(r => r.json()).then(data => {
+        document.getElementById('createSpinner').classList.add('d-none');
+        if (data.error) { showErr('createError', data.error); return; }
+        window.location.href = '/p/' + data.slug + '/';
+    }).catch(err => { document.getElementById('createSpinner').classList.add('d-none'); showErr('createError', err.message); });
+});
+</script>
+{% endblock %}
