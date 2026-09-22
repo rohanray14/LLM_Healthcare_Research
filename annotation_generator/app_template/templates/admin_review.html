@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Admin Review: {{ post.title }}{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between mb-3">
+    {% if prev_id %}<a href="{{ url_for('admin_review', post_id=prev_id) }}" class="btn btn-sm btn-outline-secondary">&larr; Previous</a>{% else %}<span></span>{% endif %}
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-dark">Dashboard</a>
+        {% if expert_names %}
+        <select id="expertFilter" class="form-select form-select-sm" style="width:auto;">
+            <option value="all">All Annotators ({{ expert_names|length }})</option>
+            {% for name in expert_names %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+        </select>
+        {% endif %}
+    </div>
+    {% if next_id %}<a href="{{ url_for('admin_review', post_id=next_id) }}" class="btn btn-sm btn-outline-secondary">Next &rarr;</a>{% else %}<span></span>{% endif %}
+</div>
+
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between">
+        <h6 class="mb-0"><code class="me-2">{{ post.post_id }}</code>{{ post.title }}</h6>
+        <div>
+            {% if post.class_label %}<span class="badge bg-secondary">{{ post.class_label }}</span>{% endif %}
+            <span class="badge bg-info">{{ all_annotations|length }} annotations from {{ expert_names|length }} annotator{{ 's' if expert_names|length != 1 }}</span>
+            {% if post.link %}<a href="{{ post.link }}" target="_blank" class="btn btn-sm btn-outline-danger ms-1">Source</a>{% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card sticky-panel mb-3">
+            <div class="card-header"><h6 class="mb-0">Original Post</h6></div>
+            <div class="card-body source-panel">
+                <div class="post-body-text border rounded p-2 bg-light" style="font-size:0.85rem; white-space:pre-wrap; word-break:break-word;">{{ comment_data.get('body', '(No body)') }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8" id="commentsContainer">
+        {% if not expert_names %}<div class="alert alert-warning">No annotations yet.</div>{% endif %}
+        {% for item in post.advice %}
+        <div class="comment-source d-none" data-index="{{ loop.index0 }}" data-comment-id="{{ item.comment_id or ('C' ~ loop.index) }}">{{ item.advice }}</div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const allAnnotations = {{ all_annotations | tojson }};
+const commentCount = {{ post.advice | length }};
+const expertColors = {};
+const colorPalette = ['#198754','#0d6efd','#dc3545','#fd7e14','#6f42c1','#20c997','#e83e8c','#6610f2'];
+let colorIdx = 0;
+const expertNames = {{ expert_names | tojson }};
+expertNames.forEach(name => { expertColors[name] = colorPalette[colorIdx++ % colorPalette.length]; });
+const rawTexts = {}, commentMeta = {};
+document.querySelectorAll('.comment-source').forEach(el => { const idx = parseInt(el.dataset.index); rawTexts[idx] = el.textContent; commentMeta[idx] = { commentId: el.dataset.commentId }; });
+function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+function getLikertLabel(v) { return {'1':'Strongly Agree','2':'Agree','3':'Disagree','4':'Strongly Disagree','unsure':'Unsure'}[v] || v || '—'; }
+function getLikertBadgeClass(v) { if (v==='1') return 'success'; if (v==='2') return 'info'; if (v==='3') return 'orange'; if (v==='4') return 'danger'; return 'secondary'; }
+function highlightText(rawText, spans, color) {
+    spans.sort((a,b) => a.start - b.start);
+    const merged = []; for (const h of spans) { if (merged.length && merged[merged.length-1].end > h.start) continue; merged.push(h); }
+    let html = '', cursor = 0;
+    for (const h of merged) {
+        if (h.start > cursor) html += escHtml(rawText.slice(cursor, h.start));
+        const title = `FA: ${getLikertLabel(h.verdict)}, PH: ${getLikertLabel(h.harm_verdict)}${h.annotation ? ' — '+h.annotation : ''}`;
+        html += `<mark style="background:${color}22; border-bottom:2px solid ${color};" title="${escHtml(title)}">${escHtml(rawText.slice(h.start, h.end))}</mark>`;
+        cursor = h.end;
+    }
+    if (cursor < rawText.length) html += escHtml(rawText.slice(cursor));
+    return html;
+}
+function renderAll(filter) {
+    const container = document.getElementById('commentsContainer');
+    container.querySelectorAll('.comment-card-rendered').forEach(el => el.remove());
+    const annots = filter === 'all' ? allAnnotations : allAnnotations.filter(a => a.expert_name === filter);
+    const expertSet = new Set(); annots.forEach(a => expertSet.add(a.expert_name));
+    const expertList = [...expertSet].sort();
+    for (let idx = 0; idx < commentCount; idx++) {
+        const rawText = rawTexts[idx], meta = commentMeta[idx];
+        if (!expertList.length) {
+            const card = document.createElement('div'); card.className = 'card mb-3 comment-card-rendered';
+            card.innerHTML = `<div class="card-header"><h6 class="mb-0">Comment: <code>${meta.commentId}</code></h6></div><div class="card-body"><div style="font-size:0.88rem; white-space:pre-wrap;">${escHtml(rawText)}</div></div>`;
+            container.appendChild(card); continue;
+        }
+        expertList.forEach(expertName => {
+            const ea = annots.filter(a => a.section === 'advice' && a.item_index === idx && a.expert_name === expertName);
+            if (!ea.length) return;
+            const color = expertColors[expertName] || '#6c757d';
+            const card = document.createElement('div'); card.className = 'card mb-2 comment-card-rendered'; card.style.borderLeft = `4px solid ${color}`;
+            let annotsHtml = '';
+            ea.forEach(a => { annotsHtml += `<div class="annotation-tag mb-2 p-2 border rounded" style="background:#f8f9fa; font-size:0.82rem;"><div class="d-flex flex-wrap gap-1 mb-1"><span class="badge bg-${getLikertBadgeClass(a.verdict)}">FA: ${getLikertLabel(a.verdict)}</span><span class="badge bg-${getLikertBadgeClass(a.harm_verdict)}">PH: ${getLikertLabel(a.harm_verdict)}</span><em>"${escHtml(a.text)}"</em></div>${a.annotation?`<div class="ms-1" style="color:#555;"><strong>Note:</strong> ${escHtml(a.annotation)}</div>`:''}${a.factual_reasoning?`<div class="ms-1"><span class="badge bg-warning text-dark">Factual:</span> ${escHtml(a.factual_reasoning)}</div>`:''}${a.harm_reasoning?`<div class="ms-1"><span class="badge bg-danger">Harm:</span> ${escHtml(a.harm_reasoning)}</div>`:''}</div>`; });
+            card.innerHTML = `<div class="card-header py-1 d-flex justify-content-between"><h6 class="mb-0" style="font-size:0.85rem;">Comment: <code>${meta.commentId}</code></h6><span class="badge" style="background:${color};">${expertName}</span></div><div class="card-body py-2"><div style="font-size:0.88rem; line-height:1.7; white-space:pre-wrap;">${highlightText(rawText, ea, color)}</div>${annotsHtml?`<div class="mt-2">${annotsHtml}</div>`:''}</div>`;
+            container.appendChild(card);
+        });
+    }
+}
+const filterEl = document.getElementById('expertFilter');
+if (filterEl) filterEl.addEventListener('change', function() { renderAll(this.value); });
+renderAll('all');
+</script>
+{% endblock %}

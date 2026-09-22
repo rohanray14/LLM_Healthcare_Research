@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Annotation Tool Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f5f6fa; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .header-chip { display: inline-block; padding: 4px 12px; margin: 3px; border-radius: 20px; background: #e9ecef; font-size: 0.85rem; }
+        .sample-table { font-size: 0.78rem; }
+        .sample-table td, .sample-table th { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark px-3">
+        <span class="navbar-brand">Annotation Tool Generator</span>
+    </nav>
+
+    <div class="container py-4" style="max-width: 800px;">
+
+        <!-- Step 1: Upload -->
+        <div class="step active" id="step1">
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Step 1: Upload Your Dataset</h5></div>
+                <div class="card-body">
+                    <p class="text-muted">Upload a CSV or Excel file with your posts and comments. Each row should represent one comment, with columns for post ID, title, body, comment ID, and comment text.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Data File</label>
+                        <input type="file" id="dataFile" class="form-control" accept=".csv,.xlsx,.xls">
+                    </div>
+                    <button class="btn btn-primary" id="uploadBtn">Upload & Detect Columns</button>
+                    <div id="uploadError" class="text-danger mt-2 d-none"></div>
+                    <div id="uploadSpinner" class="d-none mt-2"><div class="spinner-border spinner-border-sm"></div> Reading file...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Map Columns -->
+        <div class="step" id="step2">
+            <div class="card mb-3">
+                <div class="card-header"><h5 class="mb-0">Step 2: Map Your Columns</h5></div>
+                <div class="card-body">
+                    <p class="text-muted">We detected <span id="colCount" class="fw-bold"></span> columns. Map them to the required fields below. Fields marked with * are required.</p>
+
+                    <div id="detectedHeaders" class="mb-3"></div>
+
+                    <div id="samplePreview" class="mb-3"></div>
+
+                    <form id="configForm">
+                        <h6 class="mt-3">Column Mapping</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Post ID *</label>
+                                <select id="col_post_id" class="form-select form-select-sm col-select" required></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Post Title</label>
+                                <select id="col_post_title" class="form-select form-select-sm col-select"></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Post Body</label>
+                                <select id="col_post_body" class="form-select form-select-sm col-select"></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Comment ID</label>
+                                <select id="col_comment_id" class="form-select form-select-sm col-select"></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Comment Body *</label>
+                                <select id="col_comment_body" class="form-select form-select-sm col-select" required></select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Themes / Labels</label>
+                                <select id="col_themes" class="form-select form-select-sm col-select"></select>
+                            </div>
+                        </div>
+
+                        <h6 class="mt-4">App Settings</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">App Name *</label>
+                                <input type="text" id="app_name" class="form-control form-control-sm" value="My Annotation Tool" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Admin Password</label>
+                                <input type="text" id="admin_password" class="form-control form-control-sm" value="admin123">
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label">Source Link Template <small class="text-muted">(use {post_id} as placeholder, leave blank if none)</small></label>
+                                <input type="text" id="link_template" class="form-control form-control-sm" placeholder="e.g. https://www.reddit.com/r/suboxone/comments/{post_id}/">
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label">Annotation Instructions <small class="text-muted">(HTML allowed, shown to annotators)</small></label>
+                                <textarea id="instructions" class="form-control form-control-sm" rows="3" placeholder="e.g. Highlight statements to evaluate for accuracy and potential harm..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 d-flex gap-2">
+                            <button type="button" class="btn btn-outline-secondary" id="backBtn">Back</button>
+                            <button type="submit" class="btn btn-success" id="generateBtn">Generate App</button>
+                        </div>
+                        <div id="genSpinner" class="d-none mt-2"><div class="spinner-border spinner-border-sm"></div> Generating...</div>
+                        <div id="genError" class="text-danger mt-2 d-none"></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let detectedHeaders = [];
+
+    function populateSelects(headers, autoMap) {
+        document.querySelectorAll('.col-select').forEach(sel => {
+            sel.innerHTML = '<option value="">(none)</option>';
+            headers.forEach(h => {
+                const opt = document.createElement('option');
+                opt.value = h;
+                opt.textContent = h;
+                sel.appendChild(opt);
+            });
+        });
+        // Apply auto-detected mappings
+        if (autoMap.post_id) document.getElementById('col_post_id').value = autoMap.post_id;
+        if (autoMap.post_title) document.getElementById('col_post_title').value = autoMap.post_title;
+        if (autoMap.post_body) document.getElementById('col_post_body').value = autoMap.post_body;
+        if (autoMap.comment_id) document.getElementById('col_comment_id').value = autoMap.comment_id;
+        if (autoMap.comment_body) document.getElementById('col_comment_body').value = autoMap.comment_body;
+        if (autoMap.themes) document.getElementById('col_themes').value = autoMap.themes;
+    }
+
+    document.getElementById('uploadBtn').addEventListener('click', function() {
+        const file = document.getElementById('dataFile').files[0];
+        if (!file) { showError('uploadError', 'Please select a file.'); return; }
+
+        const formData = new FormData();
+        formData.append('datafile', file);
+
+        document.getElementById('uploadSpinner').classList.remove('d-none');
+        document.getElementById('uploadError').classList.add('d-none');
+
+        fetch('/preview', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('uploadSpinner').classList.add('d-none');
+            if (data.error) { showError('uploadError', data.error); return; }
+
+            detectedHeaders = data.headers;
+            document.getElementById('colCount').textContent = data.headers.length;
+
+            // Show detected headers as chips
+            const hDiv = document.getElementById('detectedHeaders');
+            hDiv.innerHTML = '<label class="form-label small text-muted">Detected columns:</label><br>';
+            data.headers.forEach(h => { hDiv.innerHTML += `<span class="header-chip">${h}</span>`; });
+
+            // Show sample data
+            if (data.sample.length) {
+                let html = '<label class="form-label small text-muted">Sample data (first 3 rows):</label>';
+                html += '<div class="table-responsive"><table class="table table-sm table-bordered sample-table"><thead><tr>';
+                data.headers.forEach(h => { html += `<th>${h}</th>`; });
+                html += '</tr></thead><tbody>';
+                data.sample.forEach(row => {
+                    html += '<tr>';
+                    data.headers.forEach(h => { html += `<td title="${(row[h]||'').substring(0,200)}">${(row[h]||'').substring(0,50)}</td>`; });
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+                document.getElementById('samplePreview').innerHTML = html;
+            }
+
+            populateSelects(data.headers, data.auto_map);
+
+            document.getElementById('step1').classList.remove('active');
+            document.getElementById('step2').classList.add('active');
+        })
+        .catch(err => {
+            document.getElementById('uploadSpinner').classList.add('d-none');
+            showError('uploadError', 'Upload failed: ' + err.message);
+        });
+    });
+
+    document.getElementById('backBtn').addEventListener('click', function() {
+        document.getElementById('step2').classList.remove('active');
+        document.getElementById('step1').classList.add('active');
+    });
+
+    document.getElementById('configForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const file = document.getElementById('dataFile').files[0];
+        if (!file) { showError('genError', 'File missing — go back and re-upload.'); return; }
+
+        const formData = new FormData();
+        formData.append('datafile', file);
+        formData.append('app_name', document.getElementById('app_name').value);
+        formData.append('admin_password', document.getElementById('admin_password').value);
+        formData.append('link_template', document.getElementById('link_template').value);
+        formData.append('instructions', document.getElementById('instructions').value);
+        formData.append('col_post_id', document.getElementById('col_post_id').value);
+        formData.append('col_post_title', document.getElementById('col_post_title').value);
+        formData.append('col_post_body', document.getElementById('col_post_body').value);
+        formData.append('col_comment_id', document.getElementById('col_comment_id').value);
+        formData.append('col_comment_body', document.getElementById('col_comment_body').value);
+        formData.append('col_themes', document.getElementById('col_themes').value);
+
+        document.getElementById('genSpinner').classList.remove('d-none');
+        document.getElementById('genError').classList.add('d-none');
+
+        fetch('/generate', { method: 'POST', body: formData })
+        .then(r => {
+            if (!r.ok) return r.json().then(d => { throw new Error(d.error); });
+            return r.blob();
+        })
+        .then(blob => {
+            document.getElementById('genSpinner').classList.add('d-none');
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = document.getElementById('app_name').value.toLowerCase().replace(/\s+/g, '_') + '.zip';
+            a.click();
+            URL.revokeObjectURL(url);
+        })
+        .catch(err => {
+            document.getElementById('genSpinner').classList.add('d-none');
+            showError('genError', err.message);
+        });
+    });
+
+    function showError(id, msg) {
+        const el = document.getElementById(id);
+        el.textContent = msg;
+        el.classList.remove('d-none');
+    }
+    </script>
+</body>
+</html>
