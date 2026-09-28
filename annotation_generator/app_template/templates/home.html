@@ -27,6 +27,8 @@
                     <code>/p/{{ project.slug }}/</code>
                 </p>
                 <span class="badge bg-primary">Owner</span>
+                {% set ptype = get_project_config(project).get('project_type', 'peer') %}
+                <span class="badge bg-{{ 'success' if ptype == 'peer' else 'warning text-dark' }}">{{ 'Peer Advice' if ptype == 'peer' else 'Expert Advice' }}</span>
                 <span class="badge bg-secondary">{{ project.members | length }} members</span>
             </div>
             <div class="card-footer bg-transparent border-0 d-flex gap-2">
@@ -48,6 +50,8 @@
             <div class="card-body">
                 <h5 class="card-title">{{ project.name }}</h5>
                 <span class="badge bg-info">Annotator</span>
+                {% set ptype = get_project_config(project).get('project_type', 'peer') %}
+                <span class="badge bg-{{ 'success' if ptype == 'peer' else 'warning text-dark' }}">{{ 'Peer Advice' if ptype == 'peer' else 'Expert Advice' }}</span>
             </div>
             <div class="card-footer bg-transparent border-0">
                 <a href="{{ url_for('project_dashboard', slug=project.slug) }}" class="btn btn-sm btn-outline-primary">Dashboard</a>

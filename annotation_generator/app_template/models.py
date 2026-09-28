@@ -61,6 +61,19 @@ class TextAnnotation(db.Model):
     harm_verdict = db.Column(db.String(20), nullable=True)
     factual_reasoning = db.Column(db.Text, default="")
     harm_reasoning = db.Column(db.Text, default="")
+    span_type = db.Column(db.String(20), default="CLAIM")
     is_gt_span = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
     user = db.relationship("User")
+
+
+class CommentCode(db.Model):
+    """Comment-level codes (EXPER, HEDGED, CLAIM, etc.) for peer advice projects."""
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("project.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    post_id = db.Column(db.String(120), nullable=False)
+    comment_index = db.Column(db.Integer, nullable=False)
+    code = db.Column(db.String(20), nullable=False)
+    reason = db.Column(db.Text, default="")
+    __table_args__ = (db.UniqueConstraint("project_id", "user_id", "post_id", "comment_index", "code"),)

@@ -2,7 +2,7 @@ import os, io, csv, json, re
 from pathlib import Path
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response, g, abort
-from models import db, User, Project, ProjectMember, Assignment, TextAnnotation
+from models import db, User, Project, ProjectMember, Assignment, TextAnnotation, CommentCode
 from load_data import load_project, clear_cache, MODEL_NAME
 
 BASE = Path(__file__).resolve().parent
@@ -17,6 +17,53 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
 db.init_app(app)
+
+# ── Peer advice comment-level codes ──────────────────
+PEER_CODES = {
+    "CLAIM": {
+        "label": "Confident Claim",
+        "description": "Any assertion presented with confidence — a claim. Auto-added when you highlight a span.",
+        "color": "#fee2e2", "border_color": "#ef4444",
+        "is_span_code": True,
+    },
+    "EXPER": {
+        "label": "Personal Experience",
+        "description": "Explicitly framed as what happened to the poster personally.",
+        "color": "#dbeafe", "border_color": "#3b82f6",
+        "is_span_code": False,
+    },
+    "HEDGED": {
+        "label": "Hedged Claim",
+        "description": "Uncertainty explicitly signaled. The claim is softened or qualified.",
+        "color": "#fef9c3", "border_color": "#eab308",
+        "is_span_code": True,
+    },
+    "SUPPORT": {
+        "label": "Emotional Support",
+        "description": "No clinical claim. Validates, encourages, or empathizes.",
+        "color": "#dcfce7", "border_color": "#22c55e",
+        "is_span_code": False,
+    },
+    "REF": {
+        "label": "Referral",
+        "description": "Directs the poster to a provider, clinic, or authoritative resource.",
+        "color": "#e0e7ff", "border_color": "#6366f1",
+        "is_span_code": False,
+    },
+    "META-R": {
+        "label": "Reaction / Advocacy",
+        "description": "Emotional reaction, shared distress, or advocacy. No clinical advice.",
+        "color": "#f3e8ff", "border_color": "#a855f7",
+        "is_span_code": False,
+    },
+    "EXCLUDE": {
+        "label": "Exclude",
+        "description": "Comment content is irrelevant and should be excluded from analysis.",
+        "color": "#f1f5f9", "border_color": "#64748b",
+        "is_span_code": False,
+        "needs_reason": True,
+    },
+}
 
 
 # ── Helpers ────────────────────────────────────────────
@@ -38,7 +85,6 @@ def login_required(f):
 
 
 def get_project_and_role(slug):
-    """Returns (project, role) or aborts. role is 'admin' or 'annotator'."""
     project = Project.query.filter_by(slug=slug).first()
     if not project:
         abort(404)
@@ -60,6 +106,10 @@ def get_project_config(project):
 def get_project_data(project):
     config = get_project_config(project)
     return load_project(project.slug, config)
+
+
+def is_peer_project(config):
+    return config.get("project_type") == "peer"
 
 
 def make_slug(name):
@@ -140,7 +190,8 @@ def home():
     owned = Project.query.filter_by(owner_id=user.id).order_by(Project.created_at.desc()).all()
     memberships = ProjectMember.query.filter_by(user_id=user.id).all()
     member_projects = [Project.query.get(m.project_id) for m in memberships if m.project_id not in {p.id for p in owned}]
-    return render_template("home.html", owned_projects=owned, member_projects=member_projects)
+    return render_template("home.html", owned_projects=owned, member_projects=member_projects,
+                           get_project_config=get_project_config)
 
 
 # ── Create Project ───────────────────────────────────
@@ -220,7 +271,10 @@ def new_project_create():
     if not project_name:
         return jsonify({"error": "Project name is required"}), 400
 
-    # Convert Excel to CSV if needed
+    project_type = request.form.get("project_type", "peer").strip()
+    if project_type not in ("peer", "expert"):
+        project_type = "peer"
+
     ext = f.filename.rsplit(".", 1)[-1].lower()
     if ext == "csv":
         csv_content = f.read().decode("utf-8", errors="replace")
@@ -244,6 +298,7 @@ def new_project_create():
 
     config = {
         "app_name": project_name,
+        "project_type": project_type,
         "link_template": request.form.get("link_template", "").strip(),
         "instructions": request.form.get("instructions", "").strip(),
         "data_file": "data.csv",
@@ -257,17 +312,14 @@ def new_project_create():
         },
     }
 
-    # Save CSV
     project_dir = DATA_DIR / slug
     project_dir.mkdir(parents=True, exist_ok=True)
     (project_dir / "data.csv").write_text(csv_content, encoding="utf-8")
 
-    # Create project in DB
     project = Project(slug=slug, name=project_name, config_json=json.dumps(config), owner_id=user.id)
     db.session.add(project)
     db.session.commit()
 
-    # Add owner as admin member
     db.session.add(ProjectMember(project_id=project.id, user_id=user.id, role="admin"))
     db.session.commit()
 
@@ -284,6 +336,7 @@ def project_dashboard(slug):
     post_ids, posts, comments = get_project_data(project)
     user = get_user()
     is_admin = (role == "admin")
+    peer = is_peer_project(config)
 
     search = request.args.get("search", "").strip()
     annotator_filter = request.args.get("annotator", "").strip()
@@ -296,12 +349,48 @@ def project_dashboard(slug):
                                    config=config, is_admin=False, annotator_filter="",
                                    all_annotator_names=[], total_comments=0, total_annotated=0)
 
-    # Batch DB queries
+    # For peer projects, count comments with any code or span as "annotated"
+    if peer:
+        if is_admin:
+            # Comments with spans
+            span_counts = dict(
+                db.session.query(TextAnnotation.post_id, db.func.count(db.func.distinct(TextAnnotation.item_index)))
+                .filter_by(project_id=project.id, model_name=model_name).group_by(TextAnnotation.post_id).all()
+            )
+            # Comments with codes
+            code_counts = dict(
+                db.session.query(CommentCode.post_id, db.func.count(db.func.distinct(CommentCode.comment_index)))
+                .filter_by(project_id=project.id).group_by(CommentCode.post_id).all()
+            )
+            # Merge: max of spans or codes per post
+            annot_counts = {}
+            for pid in set(list(span_counts.keys()) + list(code_counts.keys())):
+                annot_counts[pid] = max(span_counts.get(pid, 0), code_counts.get(pid, 0))
+        else:
+            span_counts = dict(
+                db.session.query(TextAnnotation.post_id, db.func.count(db.func.distinct(TextAnnotation.item_index)))
+                .filter_by(user_id=user.id, project_id=project.id, model_name=model_name).group_by(TextAnnotation.post_id).all()
+            )
+            code_counts = dict(
+                db.session.query(CommentCode.post_id, db.func.count(db.func.distinct(CommentCode.comment_index)))
+                .filter_by(user_id=user.id, project_id=project.id).group_by(CommentCode.post_id).all()
+            )
+            annot_counts = {}
+            for pid in set(list(span_counts.keys()) + list(code_counts.keys())):
+                annot_counts[pid] = max(span_counts.get(pid, 0), code_counts.get(pid, 0))
+    else:
+        if is_admin:
+            annot_counts = dict(
+                db.session.query(TextAnnotation.post_id, db.func.count(db.func.distinct(TextAnnotation.item_index)))
+                .filter_by(project_id=project.id, model_name=model_name).group_by(TextAnnotation.post_id).all()
+            )
+        else:
+            annot_counts = dict(
+                db.session.query(TextAnnotation.post_id, db.func.count(db.func.distinct(TextAnnotation.item_index)))
+                .filter_by(user_id=user.id, project_id=project.id, model_name=model_name).group_by(TextAnnotation.post_id).all()
+            )
+
     if is_admin:
-        annot_counts = dict(
-            db.session.query(TextAnnotation.post_id, db.func.count(db.func.distinct(TextAnnotation.item_index)))
-            .filter_by(project_id=project.id, model_name=model_name).group_by(TextAnnotation.post_id).all()
-        )
         assigned_rows = db.session.query(Assignment.post_id, User.username) \
             .join(User, User.id == Assignment.user_id) \
             .filter(Assignment.project_id == project.id).all()
@@ -314,11 +403,6 @@ def project_dashboard(slug):
         coded_map = {}
         for pid_r, uname in coded_rows:
             coded_map.setdefault(pid_r, set()).add(uname)
-    else:
-        annot_counts = dict(
-            db.session.query(TextAnnotation.post_id, db.func.count(db.func.distinct(TextAnnotation.item_index)))
-            .filter_by(user_id=user.id, project_id=project.id, model_name=model_name).group_by(TextAnnotation.post_id).all()
-        )
 
     posts_list = []
     for pid in post_ids:
@@ -374,16 +458,6 @@ def review(slug, post_id):
         return "Post not found", 404
     comment_data = comments.get(post_id, {})
 
-    existing_annotations = []
-    for a in TextAnnotation.query.filter_by(user_id=user.id, project_id=project.id, post_id=post_id, model_name=model_name).all():
-        existing_annotations.append({
-            "id": a.id, "section": a.section, "item_index": a.item_index,
-            "start": a.start_offset, "end": a.end_offset, "text": a.highlighted_text,
-            "annotation": a.annotation_text, "verdict": a.verdict,
-            "harm_verdict": a.harm_verdict or "", "factual_reasoning": a.factual_reasoning or "",
-            "harm_reasoning": a.harm_reasoning or "", "is_gt_span": a.is_gt_span or False,
-        })
-
     if not is_admin:
         nav_ids = [pid for pid in post_ids if pid in assigned_ids]
     else:
@@ -395,9 +469,47 @@ def review(slug, post_id):
     prev_id = nav_ids[idx - 1] if idx > 0 else None
     next_id = nav_ids[idx + 1] if idx < len(nav_ids) - 1 else None
 
-    return render_template("review.html", post=post, comment_data=comment_data, project=project,
-                           config=config, existing_annotations=existing_annotations,
-                           current_model=model_name, prev_id=prev_id, next_id=next_id)
+    if is_peer_project(config):
+        # Peer advice: CLAIM/HEDGE spans + comment-level codes
+        existing_annotations = []
+        for a in TextAnnotation.query.filter_by(user_id=user.id, project_id=project.id, post_id=post_id, model_name=model_name).all():
+            existing_annotations.append({
+                "id": a.id, "item_index": a.item_index,
+                "start": a.start_offset, "end": a.end_offset, "text": a.highlighted_text,
+                "span_type": a.span_type or "CLAIM",
+            })
+
+        # Load comment-level codes
+        codes_by_comment = {}
+        exclude_reasons = {}
+        for cc in CommentCode.query.filter_by(user_id=user.id, project_id=project.id, post_id=post_id).all():
+            codes_by_comment.setdefault(str(cc.comment_index), []).append(cc.code)
+            if cc.code == "EXCLUDE" and cc.reason:
+                exclude_reasons[str(cc.comment_index)] = cc.reason
+
+        return render_template("review_peer.html", post=post, comment_data=comment_data,
+                               project=project, config=config,
+                               existing_annotations=existing_annotations,
+                               codes_by_comment=codes_by_comment,
+                               exclude_reasons=exclude_reasons,
+                               comment_codes=PEER_CODES,
+                               current_model=model_name, prev_id=prev_id, next_id=next_id)
+    else:
+        # Expert advice: Likert accuracy/harm
+        existing_annotations = []
+        for a in TextAnnotation.query.filter_by(user_id=user.id, project_id=project.id, post_id=post_id, model_name=model_name).all():
+            existing_annotations.append({
+                "id": a.id, "section": a.section, "item_index": a.item_index,
+                "start": a.start_offset, "end": a.end_offset, "text": a.highlighted_text,
+                "annotation": a.annotation_text, "verdict": a.verdict,
+                "harm_verdict": a.harm_verdict or "", "factual_reasoning": a.factual_reasoning or "",
+                "harm_reasoning": a.harm_reasoning or "", "is_gt_span": a.is_gt_span or False,
+            })
+
+        return render_template("review.html", post=post, comment_data=comment_data,
+                               project=project, config=config,
+                               existing_annotations=existing_annotations,
+                               current_model=model_name, prev_id=prev_id, next_id=next_id)
 
 
 # ── API ──────────────────────────────────────────────
@@ -408,12 +520,14 @@ def save_annotation(slug, post_id):
     project, role = get_project_and_role(slug)
     user = get_user()
     data = request.json
-    section = data["section"]
+    config = get_project_config(project)
     item_index = data.get("item_index", 0)
     start, end = data["start"], data["end"]
+    model_name = data.get("model_name", MODEL_NAME)
+    section = data.get("section", "advice")
 
     overlapping = TextAnnotation.query.filter_by(
-        user_id=user.id, project_id=project.id, post_id=post_id, model_name=data["model_name"],
+        user_id=user.id, project_id=project.id, post_id=post_id, model_name=model_name,
         section=section, item_index=item_index,
     ).filter(TextAnnotation.start_offset < end, TextAnnotation.end_offset > start).all()
     removed_ids = [a.id for a in overlapping]
@@ -421,17 +535,18 @@ def save_annotation(slug, post_id):
         db.session.delete(a)
 
     annot = TextAnnotation(
-        user_id=user.id, project_id=project.id, post_id=post_id, model_name=data["model_name"],
+        user_id=user.id, project_id=project.id, post_id=post_id, model_name=model_name,
         section=section, item_index=item_index, start_offset=start, end_offset=end,
         highlighted_text=data["text"], annotation_text=data.get("annotation", ""),
         verdict=data.get("verdict"), harm_verdict=data.get("harm_verdict"),
         factual_reasoning=data.get("factual_reasoning", ""),
         harm_reasoning=data.get("harm_reasoning", ""),
+        span_type=data.get("span_type", "CLAIM"),
         is_gt_span=data.get("is_gt_span", False),
     )
     db.session.add(annot)
     db.session.commit()
-    return jsonify({"ok": True, "id": annot.id, "removed_ids": removed_ids})
+    return jsonify({"ok": True, "id": annot.id, "removed_ids": removed_ids, "span_type": annot.span_type})
 
 
 @app.route("/p/<slug>/api/annotation/<int:annot_id>/delete", methods=["POST"])
@@ -446,6 +561,31 @@ def delete_annotation(slug, annot_id):
     return jsonify({"ok": True})
 
 
+@app.route("/p/<slug>/api/codes/<post_id>/save", methods=["POST"])
+@login_required
+def save_codes(slug, post_id):
+    project, role = get_project_and_role(slug)
+    user = get_user()
+    data = request.json
+    comment_index = data.get("comment_index")
+    codes = data.get("codes", [])
+    exclude_reason = data.get("exclude_reason", "")
+
+    CommentCode.query.filter_by(
+        user_id=user.id, project_id=project.id, post_id=post_id, comment_index=comment_index
+    ).delete()
+
+    for code in codes:
+        if code in PEER_CODES:
+            db.session.add(CommentCode(
+                user_id=user.id, project_id=project.id, post_id=post_id,
+                comment_index=comment_index, code=code,
+                reason=exclude_reason if code == "EXCLUDE" else "",
+            ))
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
 # ── Admin ────────────────────────────────────────────
 
 @app.route("/p/<slug>/admin")
@@ -457,7 +597,6 @@ def project_admin(slug):
     config = get_project_config(project)
     post_ids, posts_data, comments = get_project_data(project)
 
-    # Get all members (annotators)
     members = ProjectMember.query.filter_by(project_id=project.id).all()
     users_map = {m.user_id: User.query.get(m.user_id) for m in members}
     annotators = [{"user": users_map[m.user_id], "member": m} for m in members if m.role == "annotator"]
@@ -519,6 +658,7 @@ def admin_review(slug, post_id):
             "annotation": a.annotation_text, "verdict": a.verdict,
             "harm_verdict": a.harm_verdict or "", "factual_reasoning": a.factual_reasoning or "",
             "harm_reasoning": a.harm_reasoning or "",
+            "span_type": a.span_type or "CLAIM",
         }
         all_annotations.append(annot)
         annotations_by_expert.setdefault(annot["expert_name"], []).append(annot)
@@ -543,20 +683,43 @@ def admin_export_csv(slug):
     project, role = get_project_and_role(slug)
     if role != "admin":
         return redirect(url_for("project_dashboard", slug=slug))
+    config = get_project_config(project)
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["annotation_id", "annotator", "post_id", "comment_index",
-                     "highlighted_span", "start_offset", "end_offset",
-                     "factual_accuracy", "harm_potential",
-                     "factual_reasoning", "harm_reasoning", "optional_comment", "created_at"])
-    for a in TextAnnotation.query.filter_by(project_id=project.id).order_by(
-            TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
-        user_obj = User.query.get(a.user_id)
-        writer.writerow([a.id, user_obj.username if user_obj else "unknown", a.post_id,
-                         a.item_index, a.highlighted_text, a.start_offset, a.end_offset,
-                         a.verdict or "", a.harm_verdict or "", a.factual_reasoning or "",
-                         a.harm_reasoning or "", a.annotation_text or "",
-                         a.created_at.isoformat() if a.created_at else ""])
+
+    if is_peer_project(config):
+        writer.writerow(["annotation_id", "annotator", "post_id", "comment_index",
+                         "type", "highlighted_span", "start_offset", "end_offset",
+                         "span_type", "created_at"])
+        for a in TextAnnotation.query.filter_by(project_id=project.id).order_by(
+                TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
+            user_obj = User.query.get(a.user_id)
+            writer.writerow([a.id, user_obj.username if user_obj else "unknown", a.post_id,
+                             a.item_index, "span", a.highlighted_text, a.start_offset, a.end_offset,
+                             a.span_type or "CLAIM",
+                             a.created_at.isoformat() if a.created_at else ""])
+        # Also export comment-level codes
+        writer.writerow([])
+        writer.writerow(["code_id", "annotator", "post_id", "comment_index", "type", "code", "reason"])
+        for cc in CommentCode.query.filter_by(project_id=project.id).order_by(
+                CommentCode.post_id, CommentCode.comment_index).all():
+            user_obj = User.query.get(cc.user_id)
+            writer.writerow([cc.id, user_obj.username if user_obj else "unknown", cc.post_id,
+                             cc.comment_index, "code", cc.code, cc.reason or ""])
+    else:
+        writer.writerow(["annotation_id", "annotator", "post_id", "comment_index",
+                         "highlighted_span", "start_offset", "end_offset",
+                         "factual_accuracy", "harm_potential",
+                         "factual_reasoning", "harm_reasoning", "optional_comment", "created_at"])
+        for a in TextAnnotation.query.filter_by(project_id=project.id).order_by(
+                TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
+            user_obj = User.query.get(a.user_id)
+            writer.writerow([a.id, user_obj.username if user_obj else "unknown", a.post_id,
+                             a.item_index, a.highlighted_text, a.start_offset, a.end_offset,
+                             a.verdict or "", a.harm_verdict or "", a.factual_reasoning or "",
+                             a.harm_reasoning or "", a.annotation_text or "",
+                             a.created_at.isoformat() if a.created_at else ""])
+
     output.seek(0)
     return Response(output.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": f"attachment; filename={project.slug}_annotations.csv"})
@@ -601,6 +764,7 @@ def admin_remove_annotator(slug):
     if user_id == project.owner_id:
         return jsonify({"error": "Cannot remove project owner"}), 400
     TextAnnotation.query.filter_by(project_id=project.id, user_id=user_id).delete()
+    CommentCode.query.filter_by(project_id=project.id, user_id=user_id).delete()
     Assignment.query.filter_by(project_id=project.id, user_id=user_id).delete()
     ProjectMember.query.filter_by(project_id=project.id, user_id=user_id).delete()
     db.session.commit()

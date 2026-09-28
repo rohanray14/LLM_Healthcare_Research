@@ -197,6 +197,33 @@ def dashboard():
                                    total_comments=0, total_coded=0,
                                    all_annotator_names=[], all_splits=[])
 
+    # Batch all DB queries upfront (instead of N queries per post)
+    if is_admin:
+        coded_rows = db.session.query(
+            CommentCode.post_id,
+            db.func.count(db.func.distinct(CommentCode.comment_index)),
+            db.func.count(db.func.distinct(CommentCode.expert_id)),
+        ).group_by(CommentCode.post_id).all()
+        coded_map = {r[0]: {"coded": r[1], "annotators": r[2]} for r in coded_rows}
+
+        assigned_rows = db.session.query(Assignment.post_id, Expert.username)\
+            .join(Expert, Expert.id == Assignment.expert_id).all()
+        assigned_names_map = {}
+        for pid, uname in assigned_rows:
+            assigned_names_map.setdefault(pid, set()).add(uname)
+
+        coded_names_rows = db.session.query(CommentCode.post_id, Expert.username)\
+            .join(Expert, Expert.id == CommentCode.expert_id).distinct().all()
+        for pid, uname in coded_names_rows:
+            assigned_names_map.setdefault(pid, set()).add(uname)
+    else:
+        coded_rows = db.session.query(
+            CommentCode.post_id,
+            db.func.count(db.func.distinct(CommentCode.comment_index)),
+        ).filter_by(expert_id=expert.id).group_by(CommentCode.post_id).all()
+        coded_map = {r[0]: {"coded": r[1], "annotators": 0} for r in coded_rows}
+        assigned_names_map = {}
+
     posts_list = []
     for pid in POST_IDS:
         if not is_admin and pid not in assigned_ids:
@@ -207,36 +234,16 @@ def dashboard():
         if search and search.lower() not in (post["title"] or "").lower() and search.lower() not in pid.lower():
             continue
 
-        if is_admin:
-            coded_count = db.session.query(
-                db.func.count(db.func.distinct(CommentCode.comment_index))
-            ).filter_by(post_id=pid).scalar() or 0
-            annotator_count = db.session.query(
-                db.func.count(db.func.distinct(CommentCode.expert_id))
-            ).filter_by(post_id=pid).scalar() or 0
-            assigned_set = {r.username for r in db.session.query(Expert.username)
-                            .join(Assignment, Expert.id == Assignment.expert_id)
-                            .filter(Assignment.post_id == pid).all()}
-            coded_set = {r.username for r in db.session.query(Expert.username)
-                         .join(CommentCode, Expert.id == CommentCode.expert_id)
-                         .filter(CommentCode.post_id == pid).distinct().all()}
-            assigned_names = sorted(assigned_set | coded_set)
-        else:
-            coded_count = db.session.query(
-                db.func.count(db.func.distinct(CommentCode.comment_index))
-            ).filter_by(expert_id=expert.id, post_id=pid).scalar() or 0
-            annotator_count = 0
-            assigned_names = []
-
+        info = coded_map.get(pid, {"coded": 0, "annotators": 0})
         posts_list.append({
             "post_id": pid,
             "title": post["title"],
             "labels": post.get("labels", ""),
             "split": post.get("split", ""),
             "num_comments": len(post["advice"]),
-            "coded_comments": coded_count,
-            "annotator_count": annotator_count,
-            "assigned_names": assigned_names,
+            "coded_comments": info["coded"],
+            "annotator_count": info["annotators"],
+            "assigned_names": sorted(assigned_names_map.get(pid, set())),
             "link": post["link"],
         })
 
