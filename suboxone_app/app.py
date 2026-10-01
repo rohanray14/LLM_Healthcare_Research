@@ -591,19 +591,49 @@ def admin_export_csv():
     if not expert or expert.username != "admin":
         return redirect(url_for("login"))
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "annotation_id", "expert", "post_id", "comment_index",
-        "span_type", "highlighted_span", "start_offset", "end_offset", "created_at"
-    ])
+    import openpyxl
+    wb = openpyxl.Workbook()
 
+    # --- Sheet 1: Posts & Comments ---
+    ws1 = wb.active
+    ws1.title = "posts_comments"
+    ws1.append(["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body"])
+    for pid in POST_IDS:
+        post = POSTS.get(pid)
+        if not post:
+            continue
+        for idx, item in enumerate(post["advice"]):
+            ws1.append([
+                pid,
+                post.get("title", ""),
+                post.get("body", ""),
+                item.get("comment_id", ""),
+                idx,
+                item.get("advice", ""),
+            ])
+
+    # Build comment_id lookup: {post_id: {comment_index: comment_id}}
+    cid_map = {}
+    for pid in POST_IDS:
+        post = POSTS.get(pid)
+        if not post:
+            continue
+        cid_map[pid] = {}
+        for idx, item in enumerate(post["advice"]):
+            cid_map[pid][idx] = item.get("comment_id", "")
+
+    # --- Sheet 2: Spans ---
+    ws2 = wb.create_sheet("spans")
+    ws2.append(["annotation_id", "expert", "post_id", "comment_id", "comment_index",
+                "span_type", "highlighted_span", "start_offset", "end_offset", "created_at"])
     for a in TextAnnotation.query.order_by(TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
         expert_obj = Expert.query.get(a.expert_id)
-        writer.writerow([
+        comment_id = cid_map.get(a.post_id, {}).get(a.item_index, "")
+        ws2.append([
             a.id,
             expert_obj.username if expert_obj else "unknown",
             a.post_id,
+            comment_id,
             a.item_index,
             a.span_type or "CLAIM",
             a.highlighted_text,
@@ -612,19 +642,27 @@ def admin_export_csv():
             a.created_at.isoformat() if a.created_at else "",
         ])
 
-    codes_output = io.StringIO()
-    codes_writer = csv.writer(codes_output)
-    codes_writer.writerow(["expert", "post_id", "comment_index", "code", "exclude_reason"])
+    # --- Sheet 3: Comment Codes ---
+    ws3 = wb.create_sheet("comment_codes")
+    ws3.append(["expert", "post_id", "comment_index", "comment_id", "code", "exclude_reason"])
     for cc in CommentCode.query.order_by(CommentCode.post_id, CommentCode.comment_index).all():
         expert_obj = Expert.query.get(cc.expert_id)
-        codes_writer.writerow([
+        comment_id = cid_map.get(cc.post_id, {}).get(cc.comment_index, "")
+        ws3.append([
             expert_obj.username if expert_obj else "unknown",
-            cc.post_id, cc.comment_index, cc.code, cc.reason or "",
+            cc.post_id,
+            cc.comment_index,
+            comment_id,
+            cc.code,
+            cc.reason or "",
         ])
 
-    combined = output.getvalue() + "\n\n--- COMMENT CODES ---\n" + codes_output.getvalue()
-    return Response(combined, mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=suboxone_annotations.csv"})
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return Response(buf.getvalue(),
+                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": "attachment; filename=suboxone_annotations.xlsx"})
 
 
 # ── Admin: View all annotations on a post ─────────────
