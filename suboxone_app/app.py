@@ -594,10 +594,22 @@ def admin_export_csv():
     import openpyxl
     wb = openpyxl.Workbook()
 
+    # Build lookups: comment_id and set (split) per post
+    cid_map = {}  # {post_id: {comment_index: comment_id}}
+    split_map = {}  # {post_id: "dev"/"test"/"train"}
+    for pid in POST_IDS:
+        post = POSTS.get(pid)
+        if not post:
+            continue
+        split_map[pid] = post.get("split", "")
+        cid_map[pid] = {}
+        for idx, item in enumerate(post["advice"]):
+            cid_map[pid][idx] = item.get("comment_id", "")
+
     # --- Sheet 1: Posts & Comments ---
     ws1 = wb.active
     ws1.title = "posts_comments"
-    ws1.append(["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body"])
+    ws1.append(["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set"])
     for pid in POST_IDS:
         post = POSTS.get(pid)
         if not post:
@@ -610,22 +622,13 @@ def admin_export_csv():
                 item.get("comment_id", ""),
                 idx,
                 item.get("advice", ""),
+                split_map.get(pid, ""),
             ])
-
-    # Build comment_id lookup: {post_id: {comment_index: comment_id}}
-    cid_map = {}
-    for pid in POST_IDS:
-        post = POSTS.get(pid)
-        if not post:
-            continue
-        cid_map[pid] = {}
-        for idx, item in enumerate(post["advice"]):
-            cid_map[pid][idx] = item.get("comment_id", "")
 
     # --- Sheet 2: Spans ---
     ws2 = wb.create_sheet("spans")
     ws2.append(["annotation_id", "expert", "post_id", "comment_id", "comment_index",
-                "span_type", "highlighted_span", "start_offset", "end_offset", "created_at"])
+                "span_type", "highlighted_span", "start_offset", "end_offset", "created_at", "set"])
     for a in TextAnnotation.query.order_by(TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
         expert_obj = Expert.query.get(a.expert_id)
         comment_id = cid_map.get(a.post_id, {}).get(a.item_index, "")
@@ -640,11 +643,12 @@ def admin_export_csv():
             a.start_offset,
             a.end_offset,
             a.created_at.isoformat() if a.created_at else "",
+            split_map.get(a.post_id, ""),
         ])
 
     # --- Sheet 3: Comment Codes ---
     ws3 = wb.create_sheet("comment_codes")
-    ws3.append(["expert", "post_id", "comment_index", "comment_id", "code", "exclude_reason"])
+    ws3.append(["expert", "post_id", "comment_index", "comment_id", "code", "exclude_reason", "set"])
     for cc in CommentCode.query.order_by(CommentCode.post_id, CommentCode.comment_index).all():
         expert_obj = Expert.query.get(cc.expert_id)
         comment_id = cid_map.get(cc.post_id, {}).get(cc.comment_index, "")
@@ -655,7 +659,59 @@ def admin_export_csv():
             comment_id,
             cc.code,
             cc.reason or "",
+            split_map.get(cc.post_id, ""),
         ])
+
+    # --- Sheet 4: All Combined ---
+    ws4 = wb.create_sheet("combined")
+    ws4.append(["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set",
+                "expert", "span_type", "highlighted_span", "start_offset", "end_offset",
+                "codes", "exclude_reason", "created_at"])
+    for pid in POST_IDS:
+        post = POSTS.get(pid)
+        if not post:
+            continue
+        split = split_map.get(pid, "")
+        for idx, item in enumerate(post["advice"]):
+            c_id = cid_map.get(pid, {}).get(idx, "")
+            # Get all spans for this comment
+            spans = TextAnnotation.query.filter_by(post_id=pid, item_index=idx)\
+                .order_by(TextAnnotation.start_offset).all()
+            # Get all codes for this comment
+            codes_all = CommentCode.query.filter_by(post_id=pid, comment_index=idx).all()
+            # Group by expert
+            expert_ids = set()
+            for s in spans:
+                expert_ids.add(s.expert_id)
+            for c in codes_all:
+                expert_ids.add(c.expert_id)
+
+            if not expert_ids:
+                # No annotations — still output the comment
+                ws4.append([pid, post.get("title",""), post.get("body",""),
+                            c_id, idx, item.get("advice",""), split,
+                            "", "", "", "", "", "", "", ""])
+            else:
+                for eid in sorted(expert_ids):
+                    expert_obj = Expert.query.get(eid)
+                    ename = expert_obj.username if expert_obj else "unknown"
+                    e_spans = [s for s in spans if s.expert_id == eid]
+                    e_codes = [c for c in codes_all if c.expert_id == eid]
+                    code_str = ", ".join(c.code for c in e_codes)
+                    exclude = next((c.reason for c in e_codes if c.code == "EXCLUDE" and c.reason), "")
+                    if e_spans:
+                        for s in e_spans:
+                            ws4.append([pid, post.get("title",""), post.get("body",""),
+                                        c_id, idx, item.get("advice",""), split,
+                                        ename, s.span_type or "CLAIM", s.highlighted_text,
+                                        s.start_offset, s.end_offset,
+                                        code_str, exclude,
+                                        s.created_at.isoformat() if s.created_at else ""])
+                    else:
+                        ws4.append([pid, post.get("title",""), post.get("body",""),
+                                    c_id, idx, item.get("advice",""), split,
+                                    ename, "", "", "", "",
+                                    code_str, exclude, ""])
 
     buf = io.BytesIO()
     wb.save(buf)
