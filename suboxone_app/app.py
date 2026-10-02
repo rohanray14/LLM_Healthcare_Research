@@ -606,12 +606,32 @@ def admin_export_csv():
         for idx, item in enumerate(post["advice"]):
             cid_map[pid][idx] = item.get("comment_id", "")
 
-    # --- Single sheet with everything ---
-    ws1 = wb.active
-    ws1.title = "export"
-    ws1.append(["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set",
-                "expert", "span_type", "highlighted_span", "start_offset", "end_offset",
-                "codes", "exclude_reason", "created_at"])
+    # First pass: find which comments have >1 annotator
+    multi_annotator_comments = set()  # set of (post_id, comment_index)
+    for pid in POST_IDS:
+        post = POSTS.get(pid)
+        if not post:
+            continue
+        for idx in range(len(post["advice"])):
+            expert_ids = set()
+            for s in TextAnnotation.query.filter_by(post_id=pid, item_index=idx).all():
+                expert_ids.add(s.expert_id)
+            for c in CommentCode.query.filter_by(post_id=pid, comment_index=idx).all():
+                expert_ids.add(c.expert_id)
+            if len(expert_ids) > 1:
+                multi_annotator_comments.add((pid, idx))
+
+    # Sheet A: single-annotator comments, Sheet B: multi-annotator (for IAA)
+    header = ["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set",
+              "expert", "span_type", "highlighted_span", "start_offset", "end_offset",
+              "codes", "exclude_reason", "created_at"]
+    ws_a = wb.active
+    ws_a.title = "annotations"
+    ws_a.append(header)
+    ws_b = wb.create_sheet("multi_annotator_IAA")
+    ws_b.append(header)
+
+    # Second pass: write rows to appropriate sheet
     for pid in POST_IDS:
         post = POSTS.get(pid)
         if not post:
@@ -619,12 +639,12 @@ def admin_export_csv():
         split = split_map.get(pid, "")
         for idx, item in enumerate(post["advice"]):
             c_id = cid_map.get(pid, {}).get(idx, "")
-            # Get all spans for this comment
+            is_multi = (pid, idx) in multi_annotator_comments
+            ws = ws_b if is_multi else ws_a
+
             spans = TextAnnotation.query.filter_by(post_id=pid, item_index=idx)\
                 .order_by(TextAnnotation.start_offset).all()
-            # Get all codes for this comment
             codes_all = CommentCode.query.filter_by(post_id=pid, comment_index=idx).all()
-            # Group by expert
             expert_ids = set()
             for s in spans:
                 expert_ids.add(s.expert_id)
@@ -632,10 +652,9 @@ def admin_export_csv():
                 expert_ids.add(c.expert_id)
 
             if not expert_ids:
-                # No annotations — still output the comment
-                ws4.append([pid, post.get("title",""), post.get("body",""),
-                            c_id, idx, item.get("advice",""), split,
-                            "", "", "", "", "", "", "", ""])
+                ws.append([pid, post.get("title",""), post.get("body",""),
+                           c_id, idx, item.get("advice",""), split,
+                           "", "", "", "", "", "", "", ""])
             else:
                 for eid in sorted(expert_ids):
                     expert_obj = Expert.query.get(eid)
@@ -646,17 +665,17 @@ def admin_export_csv():
                     exclude = next((c.reason for c in e_codes if c.code == "EXCLUDE" and c.reason), "")
                     if e_spans:
                         for s in e_spans:
-                            ws4.append([pid, post.get("title",""), post.get("body",""),
-                                        c_id, idx, item.get("advice",""), split,
-                                        ename, s.span_type or "CLAIM", s.highlighted_text,
-                                        s.start_offset, s.end_offset,
-                                        code_str, exclude,
-                                        s.created_at.isoformat() if s.created_at else ""])
+                            ws.append([pid, post.get("title",""), post.get("body",""),
+                                       c_id, idx, item.get("advice",""), split,
+                                       ename, s.span_type or "CLAIM", s.highlighted_text,
+                                       s.start_offset, s.end_offset,
+                                       code_str, exclude,
+                                       s.created_at.isoformat() if s.created_at else ""])
                     else:
-                        ws4.append([pid, post.get("title",""), post.get("body",""),
-                                    c_id, idx, item.get("advice",""), split,
-                                    ename, "", "", "", "",
-                                    code_str, exclude, ""])
+                        ws.append([pid, post.get("title",""), post.get("body",""),
+                                   c_id, idx, item.get("advice",""), split,
+                                   ename, "", "", "", "",
+                                   code_str, exclude, ""])
 
     buf = io.BytesIO()
     wb.save(buf)
