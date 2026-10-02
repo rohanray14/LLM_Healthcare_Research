@@ -621,17 +621,25 @@ def admin_export_csv():
             if len(expert_ids) > 1:
                 multi_annotator_comments.add((pid, idx))
 
-    # Sheet A: single-annotator comments, Sheet B: multi-annotator (for IAA)
-    header = ["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set",
-              "expert", "span_type", "highlighted_span", "start_offset", "end_offset",
-              "codes", "exclude_reason", "created_at"]
+    # Span-level sheets (existing detail)
+    span_header = ["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set",
+                   "expert", "span_type", "highlighted_span", "start_offset", "end_offset",
+                   "codes", "exclude_reason", "created_at"]
     ws_a = wb.active
     ws_a.title = "annotations"
-    ws_a.append(header)
+    ws_a.append(span_header)
     ws_b = wb.create_sheet("multi_annotator_IAA")
-    ws_b.append(header)
+    ws_b.append(span_header)
 
-    # Second pass: write rows to appropriate sheet
+    # Comment-level sheets (one row per comment per expert, spans combined with |)
+    comment_header = ["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set",
+                      "expert", "highlighted_claim_span", "highlighted_hedge_span", "codes", "exclude_reason"]
+    ws_ac = wb.create_sheet("annotations_comment_level")
+    ws_ac.append(comment_header)
+    ws_bc = wb.create_sheet("multi_annotator_IAA_comment_level")
+    ws_bc.append(comment_header)
+
+    # Second pass: write rows to appropriate sheets
     for pid in POST_IDS:
         post = POSTS.get(pid)
         if not post:
@@ -641,6 +649,7 @@ def admin_export_csv():
             c_id = cid_map.get(pid, {}).get(idx, "")
             is_multi = (pid, idx) in multi_annotator_comments
             ws = ws_b if is_multi else ws_a
+            ws_c = ws_bc if is_multi else ws_ac
 
             spans = TextAnnotation.query.filter_by(post_id=pid, item_index=idx)\
                 .order_by(TextAnnotation.start_offset).all()
@@ -651,10 +660,12 @@ def admin_export_csv():
             for c in codes_all:
                 expert_ids.add(c.expert_id)
 
+            base_row = [pid, post.get("title",""), post.get("body",""),
+                        c_id, idx, item.get("advice",""), split]
+
             if not expert_ids:
-                ws.append([pid, post.get("title",""), post.get("body",""),
-                           c_id, idx, item.get("advice",""), split,
-                           "", "", "", "", "", "", "", ""])
+                ws.append(base_row + ["", "", "", "", "", "", "", ""])
+                ws_c.append(base_row + ["", "", "", "", ""])
             else:
                 for eid in sorted(expert_ids):
                     expert_obj = Expert.query.get(eid)
@@ -663,19 +674,22 @@ def admin_export_csv():
                     e_codes = [c for c in codes_all if c.expert_id == eid]
                     code_str = ", ".join(c.code for c in e_codes)
                     exclude = next((c.reason for c in e_codes if c.code == "EXCLUDE" and c.reason), "")
+
+                    # Span-level rows
                     if e_spans:
                         for s in e_spans:
-                            ws.append([pid, post.get("title",""), post.get("body",""),
-                                       c_id, idx, item.get("advice",""), split,
-                                       ename, s.span_type or "CLAIM", s.highlighted_text,
-                                       s.start_offset, s.end_offset,
-                                       code_str, exclude,
-                                       s.created_at.isoformat() if s.created_at else ""])
+                            ws.append(base_row + [
+                                ename, s.span_type or "CLAIM", s.highlighted_text,
+                                s.start_offset, s.end_offset,
+                                code_str, exclude,
+                                s.created_at.isoformat() if s.created_at else ""])
                     else:
-                        ws.append([pid, post.get("title",""), post.get("body",""),
-                                   c_id, idx, item.get("advice",""), split,
-                                   ename, "", "", "", "",
-                                   code_str, exclude, ""])
+                        ws.append(base_row + [ename, "", "", "", "", code_str, exclude, ""])
+
+                    # Comment-level row (one per expert per comment)
+                    claim_spans = " | ".join(s.highlighted_text for s in e_spans if (s.span_type or "CLAIM") == "CLAIM")
+                    hedge_spans = " | ".join(s.highlighted_text for s in e_spans if s.span_type == "HEDGED")
+                    ws_c.append(base_row + [ename, claim_spans, hedge_spans, code_str, exclude])
 
     buf = io.BytesIO()
     wb.save(buf)
