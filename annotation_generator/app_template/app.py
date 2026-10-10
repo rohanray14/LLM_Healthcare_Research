@@ -16,6 +16,12 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
+DB_SCHEMA = os.environ.get("DB_SCHEMA", "")
+if DB_SCHEMA and "postgresql" in app.config["SQLALCHEMY_DATABASE_URI"]:
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "connect_args": {"options": f"-csearch_path={DB_SCHEMA}"}
+    }
+
 db.init_app(app)
 
 # ── Peer advice comment-level codes ──────────────────
@@ -837,6 +843,9 @@ def join_project(slug):
 # ── Startup ──────────────────────────────────────────
 
 with app.app_context():
+    if DB_SCHEMA and "postgresql" in app.config["SQLALCHEMY_DATABASE_URI"]:
+        db.session.execute(db.text(f"CREATE SCHEMA IF NOT EXISTS {DB_SCHEMA}"))
+        db.session.commit()
     db.create_all()
     # Seed default users if they don't exist
     for uname, pw in [("admin", "admin123"), ("anu", "anu123")]:
