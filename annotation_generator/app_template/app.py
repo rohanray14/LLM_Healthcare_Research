@@ -848,7 +848,7 @@ with app.app_context():
         db.session.commit()
     db.create_all()
     # Seed default users if they don't exist
-    for uname, pw in [("admin", "admin123"), ("anu", "anu123")]:
+    for uname, pw in [("admin", "admin123"), ("anu", "anu123"), ("nikil", "nikil123")]:
         if not User.query.filter_by(username=uname).first():
             u = User(username=uname)
             u.set_password(pw)
