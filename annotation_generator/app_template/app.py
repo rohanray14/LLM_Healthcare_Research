@@ -847,6 +847,16 @@ with app.app_context():
         db.session.execute(db.text(f"CREATE SCHEMA IF NOT EXISTS {DB_SCHEMA}"))
         db.session.commit()
     db.create_all()
+    # Add csv_data column if missing (db.create_all won't alter existing tables)
+    from sqlalchemy import inspect as sa_inspect
+    inspector = sa_inspect(db.engine)
+    schema = DB_SCHEMA or None
+    if "project" in inspector.get_table_names(schema=schema):
+        cols = [c["name"] for c in inspector.get_columns("project", schema=schema)]
+        if "csv_data" not in cols:
+            table = f'"{DB_SCHEMA}".project' if DB_SCHEMA else "project"
+            db.session.execute(db.text(f"ALTER TABLE {table} ADD COLUMN csv_data TEXT"))
+            db.session.commit()
     # Seed default users if they don't exist
     for uname, pw in [("admin", "admin123"), ("anu", "anu123"), ("nikil", "nikil123")]:
         if not User.query.filter_by(username=uname).first():
