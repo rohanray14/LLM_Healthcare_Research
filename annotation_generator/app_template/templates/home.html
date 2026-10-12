@@ -34,6 +34,7 @@
             <div class="card-footer bg-transparent border-0 d-flex gap-2">
                 <a href="{{ url_for('project_dashboard', slug=project.slug) }}" class="btn btn-sm btn-outline-primary">Dashboard</a>
                 <a href="{{ url_for('project_admin', slug=project.slug) }}" class="btn btn-sm btn-outline-warning">Admin</a>
+                <button class="btn btn-sm btn-outline-danger ms-auto" onclick="deleteProject('{{ project.slug }}', '{{ project.name }}')">Delete</button>
             </div>
         </div>
     </div>
@@ -61,5 +62,17 @@
     {% endfor %}
 </div>
 {% endif %}
+
+<script>
+function deleteProject(slug, name) {
+    if (!confirm(`Delete project "${name}"? This will remove all annotations and data. This cannot be undone.`)) return;
+    fetch(`/p/${slug}/delete`, { method: 'POST', headers: {'Content-Type': 'application/json'} })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) location.reload();
+            else alert(data.error || 'Failed to delete');
+        });
+}
+</script>
 
 {% endblock %}

@@ -731,6 +731,30 @@ def admin_export_csv(slug):
                     headers={"Content-Disposition": f"attachment; filename={project.slug}_annotations.csv"})
 
 
+@app.route("/p/<slug>/delete", methods=["POST"])
+@login_required
+def delete_project(slug):
+    project = Project.query.filter_by(slug=slug).first()
+    if not project:
+        return jsonify({"error": "Not found"}), 404
+    user = get_user()
+    if project.owner_id != user.id:
+        return jsonify({"error": "Only the project owner can delete it"}), 403
+    TextAnnotation.query.filter_by(project_id=project.id).delete()
+    CommentCode.query.filter_by(project_id=project.id).delete()
+    Assignment.query.filter_by(project_id=project.id).delete()
+    ProjectMember.query.filter_by(project_id=project.id).delete()
+    db.session.delete(project)
+    db.session.commit()
+    # Remove data directory if it exists
+    data_dir = DATA_DIR / slug
+    if data_dir.exists():
+        import shutil
+        shutil.rmtree(data_dir)
+    clear_cache(slug)
+    return jsonify({"ok": True})
+
+
 @app.route("/p/<slug>/admin/add_annotator", methods=["POST"])
 @login_required
 def admin_add_annotator(slug):
