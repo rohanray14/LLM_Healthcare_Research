@@ -87,14 +87,21 @@ def _build_posts(grouped, config):
 
 
 def load_project(slug, config):
-    """Load data for a project. Uses cache."""
+    """Load data for a project. Uses cache. Restores CSV from DB if missing on disk."""
     if slug in _cache:
         return _cache[slug]
 
     data_file = config.get("data_file", "data.csv")
     path = BASE / "data" / slug / data_file
     if not path.exists():
-        return [], {}, {}
+        # Restore from database if available
+        from models import Project
+        project = Project.query.filter_by(slug=slug).first()
+        if project and project.csv_data:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(project.csv_data, encoding="utf-8")
+        else:
+            return [], {}, {}
 
     grouped = _load_csv(path, config["columns"])
     posts, comments = _build_posts(grouped, config)

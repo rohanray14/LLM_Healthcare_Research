@@ -322,7 +322,7 @@ def new_project_create():
     project_dir.mkdir(parents=True, exist_ok=True)
     (project_dir / "data.csv").write_text(csv_content, encoding="utf-8")
 
-    project = Project(slug=slug, name=project_name, config_json=json.dumps(config), owner_id=user.id)
+    project = Project(slug=slug, name=project_name, config_json=json.dumps(config), csv_data=csv_content, owner_id=user.id)
     db.session.add(project)
     db.session.commit()
 
