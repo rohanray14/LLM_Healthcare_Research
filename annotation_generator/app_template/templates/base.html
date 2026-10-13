@@ -24,7 +24,7 @@
         </div>
         {% endif %}
     </nav>
-    {% if using_sqlite %}
+    {% if using_sqlite and current_user and current_user.owned_projects|length > 0 %}
     <div class="alert alert-warning text-center mb-0 rounded-0 py-2" role="alert" style="font-size:0.9rem;">
         <strong>No database configured.</strong> Data will be lost on redeploy.
         <a href="{{ url_for('setup_page') }}" class="alert-link">Set up PostgreSQL &rarr;</a>
