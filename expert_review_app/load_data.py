@@ -219,11 +219,11 @@ def load_all():
             if pid not in comments:
                 comments[pid] = cdata
 
-    # Load r/methadone (no split)
+    # Load r/methadone
     meth_path = BASE / "meth.csv"
     if meth_path.exists():
         grouped = _load_csv(meth_path)
-        p, c = _build_posts_and_comments(grouped, "", subreddit="r/methadone")
+        p, c = _build_posts_and_comments(grouped, "test", subreddit="r/methadone")
         for key, val in p.items():
             if key not in posts:
                 posts[key] = val
