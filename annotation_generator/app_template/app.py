@@ -720,33 +720,142 @@ def admin_review(slug, post_id):
 @app.route("/p/<slug>/admin/export_csv")
 @login_required
 def admin_export_csv(slug):
+    import openpyxl
+    from collections import defaultdict
+
     project, role = get_project_and_role(slug)
     if role != "admin":
         return redirect(url_for("project_dashboard", slug=slug))
     config = get_project_config(project)
-    output = io.StringIO()
-    writer = csv.writer(output)
+    post_ids, posts, comments = get_project_data(project)
 
     if is_peer_project(config):
-        writer.writerow(["annotation_id", "annotator", "post_id", "comment_index",
-                         "type", "highlighted_span", "start_offset", "end_offset",
-                         "span_type", "created_at"])
-        for a in TextAnnotation.query.filter_by(project_id=project.id).order_by(
-                TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
-            user_obj = User.query.get(a.user_id)
-            writer.writerow([a.id, user_obj.username if user_obj else "unknown", a.post_id,
-                             a.item_index, "span", a.highlighted_text, a.start_offset, a.end_offset,
-                             a.span_type or "CLAIM",
-                             a.created_at.isoformat() if a.created_at else ""])
-        # Also export comment-level codes
-        writer.writerow([])
-        writer.writerow(["code_id", "annotator", "post_id", "comment_index", "type", "code", "reason"])
-        for cc in CommentCode.query.filter_by(project_id=project.id).order_by(
-                CommentCode.post_id, CommentCode.comment_index).all():
-            user_obj = User.query.get(cc.user_id)
-            writer.writerow([cc.id, user_obj.username if user_obj else "unknown", cc.post_id,
-                             cc.comment_index, "code", cc.code, cc.reason or ""])
+        wb = openpyxl.Workbook()
+
+        # Build comment lookup: {post_id: {comment_index: (comment_id, comment_body)}}
+        cid_map = {}
+        post_title_map = {}
+        post_body_map = {}
+        for pid in post_ids:
+            key = (pid, MODEL_NAME)
+            post = posts.get(key)
+            if not post:
+                continue
+            post_title_map[pid] = post.get("title", "")
+            post_body_map[pid] = post.get("summary", "")
+            cid_map[pid] = {}
+            for idx, item in enumerate(post["advice"]):
+                cid_map[pid][idx] = (item.get("comment_id", ""), item.get("advice", ""))
+
+        # Batch load all annotations and codes
+        all_spans = TextAnnotation.query.filter_by(project_id=project.id).order_by(
+            TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all()
+        all_codes = CommentCode.query.filter_by(project_id=project.id).order_by(
+            CommentCode.post_id, CommentCode.comment_index).all()
+
+        spans_by_comment = defaultdict(list)
+        codes_by_comment = defaultdict(list)
+        for s in all_spans:
+            spans_by_comment[(s.post_id, s.item_index)].append(s)
+        for c in all_codes:
+            codes_by_comment[(c.post_id, c.comment_index)].append(c)
+
+        # Cache user names
+        user_name_cache = {}
+        for u in User.query.all():
+            user_name_cache[u.id] = u.username
+
+        # Find multi-annotator comments
+        multi_annotator_comments = set()
+        for pid in post_ids:
+            key = (pid, MODEL_NAME)
+            post = posts.get(key)
+            if not post:
+                continue
+            for idx in range(len(post["advice"])):
+                eids = set()
+                for s in spans_by_comment.get((pid, idx), []):
+                    eids.add(s.user_id)
+                for c in codes_by_comment.get((pid, idx), []):
+                    eids.add(c.user_id)
+                if len(eids) > 1:
+                    multi_annotator_comments.add((pid, idx))
+
+        # Span-level sheets
+        span_header = ["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set",
+                       "expert", "span_type", "highlighted_span", "start_offset", "end_offset",
+                       "codes", "exclude_reason", "created_at"]
+        ws_a = wb.active
+        ws_a.title = "annotations"
+        ws_a.append(span_header)
+        ws_b = wb.create_sheet("multi_annotator_IAA")
+        ws_b.append(span_header)
+
+        # Comment-level sheets
+        comment_header = ["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set",
+                          "expert", "highlighted_claim_span", "highlighted_hedge_span", "codes", "exclude_reason"]
+        ws_ac = wb.create_sheet("annotations_comment_level")
+        ws_ac.append(comment_header)
+        ws_bc = wb.create_sheet("multi_annotator_IAA_comment_level")
+        ws_bc.append(comment_header)
+
+        # Write rows
+        for pid in post_ids:
+            key = (pid, MODEL_NAME)
+            post = posts.get(key)
+            if not post:
+                continue
+            for idx, item in enumerate(post["advice"]):
+                c_id, c_body = cid_map.get(pid, {}).get(idx, ("", ""))
+                is_multi = (pid, idx) in multi_annotator_comments
+                ws = ws_b if is_multi else ws_a
+                ws_c = ws_bc if is_multi else ws_ac
+
+                spans = spans_by_comment.get((pid, idx), [])
+                codes_all = codes_by_comment.get((pid, idx), [])
+                eids = set()
+                for s in spans:
+                    eids.add(s.user_id)
+                for c in codes_all:
+                    eids.add(c.user_id)
+
+                base_row = [pid, post_title_map.get(pid, ""), post_body_map.get(pid, ""),
+                            c_id, idx, c_body, ""]
+
+                if not eids:
+                    ws.append(base_row + ["", "", "", "", "", "", "", ""])
+                    ws_c.append(base_row + ["", "", "", "", ""])
+                else:
+                    for eid in sorted(eids):
+                        ename = user_name_cache.get(eid, "unknown")
+                        e_spans = [s for s in spans if s.user_id == eid]
+                        e_codes = [c for c in codes_all if c.user_id == eid]
+                        code_str = ", ".join(c.code for c in e_codes)
+                        exclude = next((c.reason for c in e_codes if c.code == "EXCLUDE" and c.reason), "")
+
+                        if e_spans:
+                            for s in e_spans:
+                                ws.append(base_row + [
+                                    ename, s.span_type or "CLAIM", s.highlighted_text,
+                                    s.start_offset, s.end_offset,
+                                    code_str, exclude,
+                                    s.created_at.isoformat() if s.created_at else ""])
+                        else:
+                            ws.append(base_row + [ename, "", "", "", "", code_str, exclude, ""])
+
+                        claim_spans = " | ".join(s.highlighted_text for s in e_spans if (s.span_type or "CLAIM") == "CLAIM")
+                        hedge_spans = " | ".join(s.highlighted_text for s in e_spans if s.span_type == "HEDGED")
+                        ws_c.append(base_row + [ename, claim_spans, hedge_spans, code_str, exclude])
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return Response(buf.getvalue(),
+                        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f"attachment; filename={project.slug}_annotations.xlsx"})
     else:
+        output = io.StringIO()
+        writer = csv.writer(output)
         writer.writerow(["annotation_id", "annotator", "post_id", "comment_index",
                          "highlighted_span", "start_offset", "end_offset",
                          "factual_accuracy", "harm_potential",
@@ -760,9 +869,9 @@ def admin_export_csv(slug):
                              a.harm_reasoning or "", a.annotation_text or "",
                              a.created_at.isoformat() if a.created_at else ""])
 
-    output.seek(0)
-    return Response(output.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition": f"attachment; filename={project.slug}_annotations.csv"})
+        output.seek(0)
+        return Response(output.getvalue(), mimetype="text/csv",
+                        headers={"Content-Disposition": f"attachment; filename={project.slug}_annotations.csv"})
 
 
 @app.route("/p/<slug>/delete", methods=["POST"])
