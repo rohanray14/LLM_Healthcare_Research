@@ -45,6 +45,19 @@ def setup_page():
                            tables_ok=tables_ok, db_schema=DB_SCHEMA)
 
 
+@app.before_request
+def require_database():
+    if not USING_SQLITE:
+        return
+    ALLOWED = ("setup_page", "static", "login", "register", "logout",
+               "home", "new_project", "new_project_preview", "new_project_create")
+    if request.endpoint in ALLOWED:
+        return
+    user = get_user()
+    if user and user.owned_projects:
+        return redirect(url_for("setup_page"))
+
+
 # ── Peer advice comment-level codes ──────────────────
 PEER_CODES = {
     "CLAIM": {
