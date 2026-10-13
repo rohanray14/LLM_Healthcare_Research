@@ -459,28 +459,35 @@ def admin_export_csv():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
-        "annotation_id", "expert", "post_id", "split", "comment_index",
-        "highlighted_span", "start_offset", "end_offset",
+        "annotation_id", "dataset", "expert", "post_id", "split",
+        "comment_id", "comment", "highlighted_span",
         "factual_accuracy", "harm_potential",
         "factual_reasoning", "harm_reasoning", "optional_comment", "created_at"
     ])
 
     for a in TextAnnotation.query.order_by(TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
         expert_obj = Expert.query.get(a.expert_id)
-        # Look up split from loaded data
+        # Look up split, subreddit, comment_id, and comment body from loaded data
         key = (a.post_id, "comment_annotations")
         post = POSTS.get(key)
         split = post.get("split", "") if post else ""
+        dataset = post.get("subreddit", "") if post else ""
+        comment_id = ""
+        comment_body = ""
+        if post and 0 <= a.item_index < len(post["advice"]):
+            item = post["advice"][a.item_index]
+            comment_id = item.get("comment_id", "")
+            comment_body = item.get("advice", "")
 
         writer.writerow([
             a.id,
+            dataset,
             expert_obj.username if expert_obj else "unknown",
             a.post_id,
             split,
-            a.item_index,
+            comment_id,
+            comment_body,
             a.highlighted_text,
-            a.start_offset,
-            a.end_offset,
             a.verdict or "",
             a.harm_verdict or "",
             a.factual_reasoning or "",
