@@ -711,39 +711,132 @@ def admin_export_csv(slug):
     if err:
         return err
 
+    import openpyxl
+    from collections import defaultdict
+
     expert_ids = [e.id for e in Expert.query.filter_by(project_id=project.id).all()]
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "annotation_id", "expert", "post_id", "comment_index",
-        "span_type", "highlighted_span", "start_offset", "end_offset", "created_at"
-    ])
+    wb = openpyxl.Workbook()
 
-    for a in SpanAnnotation.query.filter(SpanAnnotation.expert_id.in_(expert_ids)).order_by(
-            SpanAnnotation.post_id, SpanAnnotation.item_index, SpanAnnotation.start_offset).all():
-        expert_obj = Expert.query.get(a.expert_id)
-        writer.writerow([
-            a.id, expert_obj.username if expert_obj else "unknown",
-            a.post_id, a.item_index, a.span_type or "CLAIM",
-            a.highlighted_text, a.start_offset, a.end_offset,
-            a.created_at.isoformat() if a.created_at else "",
-        ])
+    # Build lookups: post data and comment info
+    posts = Post.query.filter_by(project_id=project.id).order_by(Post.order_index).all()
+    post_ids = [p.post_id for p in posts]
+    post_map = {p.post_id: p for p in posts}
 
-    codes_output = io.StringIO()
-    codes_writer = csv.writer(codes_output)
-    codes_writer.writerow(["expert", "post_id", "comment_index", "code", "exclude_reason"])
-    for cc in CommentCode.query.filter(CommentCode.expert_id.in_(expert_ids)).order_by(
-            CommentCode.post_id, CommentCode.comment_index).all():
-        expert_obj = Expert.query.get(cc.expert_id)
-        codes_writer.writerow([
-            expert_obj.username if expert_obj else "unknown",
-            cc.post_id, cc.comment_index, cc.code, cc.reason or "",
-        ])
+    # Comment lookup: {post_id: {comment_index: (comment_id, comment_body)}}
+    comment_map = {}
+    for p in posts:
+        comment_map[p.post_id] = {}
+        for c in Comment.query.filter_by(post_ref_id=p.id).order_by(Comment.comment_index).all():
+            comment_map[p.post_id][c.comment_index] = (c.comment_id, c.comment_body)
 
-    combined = output.getvalue() + "\n\n--- COMMENT CODES ---\n" + codes_output.getvalue()
-    return Response(combined, mimetype="text/csv",
-                    headers={"Content-Disposition": f"attachment; filename={project.slug}_annotations.csv"})
+    # Batch load all annotations and codes
+    all_spans = SpanAnnotation.query.filter(SpanAnnotation.expert_id.in_(expert_ids)).order_by(
+        SpanAnnotation.post_id, SpanAnnotation.item_index, SpanAnnotation.start_offset).all()
+    all_codes = CommentCode.query.filter(CommentCode.expert_id.in_(expert_ids)).order_by(
+        CommentCode.post_id, CommentCode.comment_index).all()
+
+    # Index by (post_id, comment_index)
+    spans_by_comment = defaultdict(list)
+    codes_by_comment = defaultdict(list)
+    for s in all_spans:
+        spans_by_comment[(s.post_id, s.item_index)].append(s)
+    for c in all_codes:
+        codes_by_comment[(c.post_id, c.comment_index)].append(c)
+
+    # Cache expert names
+    expert_name_cache = {}
+    for e in Expert.query.filter_by(project_id=project.id).all():
+        expert_name_cache[e.id] = e.username
+
+    # Find which comments have >1 annotator
+    multi_annotator_comments = set()
+    for pid in post_ids:
+        p = post_map.get(pid)
+        if not p:
+            continue
+        num_comments = len(comment_map.get(pid, {}))
+        for idx in range(num_comments):
+            eids = set()
+            for s in spans_by_comment.get((pid, idx), []):
+                eids.add(s.expert_id)
+            for c in codes_by_comment.get((pid, idx), []):
+                eids.add(c.expert_id)
+            if len(eids) > 1:
+                multi_annotator_comments.add((pid, idx))
+
+    # Span-level sheets
+    span_header = ["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set",
+                   "expert", "span_type", "highlighted_span", "start_offset", "end_offset",
+                   "codes", "exclude_reason", "created_at"]
+    ws_a = wb.active
+    ws_a.title = "annotations"
+    ws_a.append(span_header)
+    ws_b = wb.create_sheet("multi_annotator_IAA")
+    ws_b.append(span_header)
+
+    # Comment-level sheets
+    comment_header = ["post_id", "post_title", "post_body", "comment_id", "comment_index", "comment_body", "set",
+                      "expert", "highlighted_claim_span", "highlighted_hedge_span", "codes", "exclude_reason"]
+    ws_ac = wb.create_sheet("annotations_comment_level")
+    ws_ac.append(comment_header)
+    ws_bc = wb.create_sheet("multi_annotator_IAA_comment_level")
+    ws_bc.append(comment_header)
+
+    # Write rows
+    for pid in post_ids:
+        p = post_map.get(pid)
+        if not p:
+            continue
+        comments_for_post = comment_map.get(pid, {})
+        for idx in sorted(comments_for_post.keys()):
+            c_id, c_body = comments_for_post[idx]
+            is_multi = (pid, idx) in multi_annotator_comments
+            ws = ws_b if is_multi else ws_a
+            ws_c = ws_bc if is_multi else ws_ac
+
+            spans = spans_by_comment.get((pid, idx), [])
+            codes_all = codes_by_comment.get((pid, idx), [])
+            eids = set()
+            for s in spans:
+                eids.add(s.expert_id)
+            for c in codes_all:
+                eids.add(c.expert_id)
+
+            base_row = [pid, p.title or "", p.body or "",
+                        c_id, idx, c_body, p.split or ""]
+
+            if not eids:
+                ws.append(base_row + ["", "", "", "", "", "", "", ""])
+                ws_c.append(base_row + ["", "", "", "", ""])
+            else:
+                for eid in sorted(eids):
+                    ename = expert_name_cache.get(eid, "unknown")
+                    e_spans = [s for s in spans if s.expert_id == eid]
+                    e_codes = [c for c in codes_all if c.expert_id == eid]
+                    code_str = ", ".join(c.code for c in e_codes)
+                    exclude = next((c.reason for c in e_codes if c.code == "EXCLUDE" and c.reason), "")
+
+                    if e_spans:
+                        for s in e_spans:
+                            ws.append(base_row + [
+                                ename, s.span_type or "CLAIM", s.highlighted_text,
+                                s.start_offset, s.end_offset,
+                                code_str, exclude,
+                                s.created_at.isoformat() if s.created_at else ""])
+                    else:
+                        ws.append(base_row + [ename, "", "", "", "", code_str, exclude, ""])
+
+                    claim_spans = " | ".join(s.highlighted_text for s in e_spans if (s.span_type or "CLAIM") == "CLAIM")
+                    hedge_spans = " | ".join(s.highlighted_text for s in e_spans if s.span_type == "HEDGED")
+                    ws_c.append(base_row + [ename, claim_spans, hedge_spans, code_str, exclude])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return Response(buf.getvalue(),
+                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename={project.slug}_annotations.xlsx"})
 
 
 # ── Admin: Review all annotations on a post ──────────
