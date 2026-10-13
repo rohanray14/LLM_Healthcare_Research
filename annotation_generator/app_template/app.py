@@ -24,6 +24,27 @@ if DB_SCHEMA and "postgresql" in app.config["SQLALCHEMY_DATABASE_URI"]:
 
 db.init_app(app)
 
+USING_SQLITE = "sqlite" in app.config["SQLALCHEMY_DATABASE_URI"]
+
+
+# ── Setup page ────────────────────────────────────────
+
+@app.route("/setup")
+def setup_page():
+    tables_ok = False
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(db.engine)
+        schema = DB_SCHEMA or None
+        tables = inspector.get_table_names(schema=schema)
+        tables_ok = "user" in tables and "project" in tables
+    except Exception:
+        pass
+    db_type = "SQLite" if USING_SQLITE else "PostgreSQL"
+    return render_template("setup.html", using_sqlite=USING_SQLITE, db_type=db_type,
+                           tables_ok=tables_ok, db_schema=DB_SCHEMA)
+
+
 # ── Peer advice comment-level codes ──────────────────
 PEER_CODES = {
     "CLAIM": {
@@ -132,7 +153,7 @@ def make_slug(name):
 
 @app.context_processor
 def inject_globals():
-    return {"current_user": get_user()}
+    return {"current_user": get_user(), "using_sqlite": USING_SQLITE}
 
 
 # ── Auth ──────────────────────────────────────────────
@@ -192,7 +213,7 @@ def logout():
 def home():
     user = get_user()
     if not user:
-        return render_template("landing.html")
+        return render_template("landing.html", using_sqlite=USING_SQLITE)
     owned = Project.query.filter_by(owner_id=user.id).order_by(Project.created_at.desc()).all()
     memberships = ProjectMember.query.filter_by(user_id=user.id).all()
     member_projects = [Project.query.get(m.project_id) for m in memberships if m.project_id not in {p.id for p in owned}]

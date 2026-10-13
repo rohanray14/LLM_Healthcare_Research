@@ -12,6 +12,12 @@
     </style>
 </head>
 <body>
+    {% if using_sqlite %}
+    <div class="alert alert-warning text-center mb-0 rounded-0" role="alert">
+        <strong>No database configured.</strong> Data is stored in a temporary SQLite file and will be lost on redeploy.
+        <a href="{{ url_for('setup_page') }}" class="alert-link">Set up a PostgreSQL database &rarr;</a>
+    </div>
+    {% endif %}
     <div class="container hero">
         <div class="row align-items-center w-100">
             <div class="col-lg-6 text-white mb-4">

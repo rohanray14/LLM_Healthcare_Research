@@ -24,6 +24,12 @@
         </div>
         {% endif %}
     </nav>
+    {% if using_sqlite %}
+    <div class="alert alert-warning text-center mb-0 rounded-0 py-2" role="alert" style="font-size:0.9rem;">
+        <strong>No database configured.</strong> Data will be lost on redeploy.
+        <a href="{{ url_for('setup_page') }}" class="alert-link">Set up PostgreSQL &rarr;</a>
+    </div>
+    {% endif %}
     <div class="container-fluid px-4 py-3">
         {% block content %}{% endblock %}
     </div>
