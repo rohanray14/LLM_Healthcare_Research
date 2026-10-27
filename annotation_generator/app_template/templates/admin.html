@@ -11,6 +11,33 @@
     </div>
 </div>
 
+<!-- Project Settings -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Project Settings</h6>
+        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#settingsCollapse">Edit</button>
+    </div>
+    <div class="collapse" id="settingsCollapse">
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label small fw-bold">Project Name</label>
+                <input type="text" id="settingsName" class="form-control form-control-sm" value="{{ config.get('app_name', project.name) }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-bold">Instructions</label>
+                <textarea id="settingsInstructions" class="form-control form-control-sm" rows="5">{{ config.get('instructions', '') }}</textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-bold">Link Template</label>
+                <input type="text" id="settingsLinkTemplate" class="form-control form-control-sm" value="{{ config.get('link_template', '') }}">
+                <small class="text-muted">Use {post_id} as placeholder. E.g. https://reddit.com/comments/{post_id}</small>
+            </div>
+            <button class="btn btn-sm btn-primary" id="saveSettingsBtn">Save Settings</button>
+            <span id="settingsStatus" class="ms-2"></span>
+        </div>
+    </div>
+</div>
+
 <!-- Invite Link -->
 <div class="card mb-4">
     <div class="card-header"><h6 class="mb-0">Invite Annotators</h6></div>
@@ -92,6 +119,20 @@
 {% block scripts %}
 <script>
 const SLUG = "{{ project.slug }}";
+
+document.getElementById('saveSettingsBtn').addEventListener('click', function() {
+    const status = document.getElementById('settingsStatus');
+    const payload = {
+        app_name: document.getElementById('settingsName').value,
+        instructions: document.getElementById('settingsInstructions').value,
+        link_template: document.getElementById('settingsLinkTemplate').value,
+    };
+    fetch(`/p/${SLUG}/admin/update_settings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    .then(r => r.json()).then(d => {
+        if (d.ok) { status.innerHTML = '<small class="text-success">Saved!</small>'; setTimeout(() => status.innerHTML = '', 3000); }
+        else { status.innerHTML = `<small class="text-danger">${d.error}</small>`; }
+    }).catch(err => { status.innerHTML = `<small class="text-danger">Failed: ${err.message}</small>`; });
+});
 
 document.getElementById('addAnnotatorBtn').addEventListener('click', function() {
     const username = document.getElementById('newUsername').value.trim();

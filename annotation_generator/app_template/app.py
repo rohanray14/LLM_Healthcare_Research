@@ -960,6 +960,29 @@ def admin_assign(slug):
     return jsonify({"ok": True})
 
 
+@app.route("/p/<slug>/admin/update_settings", methods=["POST"])
+@login_required
+def admin_update_settings(slug):
+    project, role = get_project_and_role(slug)
+    if role != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.json
+    config = get_project_config(project)
+    if "instructions" in data:
+        config["instructions"] = data["instructions"].strip()
+    if "link_template" in data:
+        config["link_template"] = data["link_template"].strip()
+    if "app_name" in data:
+        new_name = data["app_name"].strip()
+        if new_name:
+            config["app_name"] = new_name
+            project.name = new_name
+    project.config_json = json.dumps(config)
+    db.session.commit()
+    clear_cache()
+    return jsonify({"ok": True})
+
+
 @app.route("/p/<slug>/admin/db")
 @login_required
 def admin_db(slug):
