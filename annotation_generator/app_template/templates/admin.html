@@ -25,7 +25,15 @@
             </div>
             <div class="mb-3">
                 <label class="form-label small fw-bold">Instructions</label>
-                <textarea id="settingsInstructions" class="form-control form-control-sm" rows="5">{{ config.get('instructions', '') }}</textarea>
+                <div class="btn-toolbar mb-1" role="toolbar">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="document.execCommand('insertUnorderedList')" title="Bullet List">&#8226; List</button>
+                    </div>
+                </div>
+                <div id="settingsInstructions" class="form-control" contenteditable="true" style="min-height:120px; font-size:0.88rem;">{{ config.get('instructions', '') | safe }}</div>
             </div>
             <div class="mb-3">
                 <label class="form-label small fw-bold">Link Template</label>
@@ -124,7 +132,7 @@ document.getElementById('saveSettingsBtn').addEventListener('click', function() 
     const status = document.getElementById('settingsStatus');
     const payload = {
         app_name: document.getElementById('settingsName').value,
-        instructions: document.getElementById('settingsInstructions').value,
+        instructions: document.getElementById('settingsInstructions').innerHTML,
         link_template: document.getElementById('settingsLinkTemplate').value,
     };
     fetch(`/p/${SLUG}/admin/update_settings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
