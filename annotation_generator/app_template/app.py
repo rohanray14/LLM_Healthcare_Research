@@ -854,17 +854,28 @@ def admin_export_csv(slug):
                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f"attachment; filename={project.slug}_annotations.xlsx"})
     else:
+        # Build comment_id lookup: {(post_id, comment_index): comment_id}
+        cid_lookup = {}
+        for pid in post_ids:
+            key = (pid, MODEL_NAME)
+            post = posts.get(key)
+            if not post:
+                continue
+            for idx, item in enumerate(post["advice"]):
+                cid_lookup[(pid, idx)] = item.get("comment_id", "")
+
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["annotation_id", "annotator", "post_id", "comment_index",
+        writer.writerow(["annotation_id", "annotator", "post_id", "comment_id", "comment_index",
                          "highlighted_span", "start_offset", "end_offset",
                          "factual_accuracy", "harm_potential",
                          "factual_reasoning", "harm_reasoning", "optional_comment", "created_at"])
         for a in TextAnnotation.query.filter_by(project_id=project.id).order_by(
                 TextAnnotation.post_id, TextAnnotation.item_index, TextAnnotation.start_offset).all():
             user_obj = User.query.get(a.user_id)
+            c_id = cid_lookup.get((a.post_id, a.item_index), "")
             writer.writerow([a.id, user_obj.username if user_obj else "unknown", a.post_id,
-                             a.item_index, a.highlighted_text, a.start_offset, a.end_offset,
+                             c_id, a.item_index, a.highlighted_text, a.start_offset, a.end_offset,
                              a.verdict or "", a.harm_verdict or "", a.factual_reasoning or "",
                              a.harm_reasoning or "", a.annotation_text or "",
                              a.created_at.isoformat() if a.created_at else ""])
